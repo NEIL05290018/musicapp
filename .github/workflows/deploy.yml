@@ -32,10 +32,11 @@ jobs:
           rm -rf /opt/audiosift/frontend/*
           cp -r dist/* /opt/audiosift/frontend/
 
+      - name: Setup backend directories
+        run: mkdir -p /opt/audiosift/{backend,uploads,outputs,logs}
+
       - name: Deploy backend
-        run: |
-          mkdir -p /opt/audiosift/backend
-          cp -f backend/*.py /opt/audiosift/backend/
+        run: cp -f backend/*.py /opt/audiosift/backend/
 
       - name: Install systemd service
         run: |
@@ -49,7 +50,7 @@ jobs:
       - name: Verify deployment
         run: |
           for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/health)
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/api/health)
             if [ "$code" = "200" ]; then
               echo "Health check passed: $code"
               echo "=== Deploy completed ==="

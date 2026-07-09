@@ -1,14 +1,18 @@
 [Unit]
-Description=AudioSift backend
+Description=AudioSift Backend Service
 After=network.target
 
 [Service]
 Type=simple
-User=root
+User=www-data
+Group=www-data
 WorkingDirectory=/opt/audiosift/backend
-ExecStart=/opt/audiosift/venv/bin/python /opt/audiosift/backend/main.py
-Restart=on-failure
-Environment=PYTHONUNBUFFERED=1
+Environment="PATH=/opt/audiosift/backend/venv/bin"
+Environment="UPLOAD_DIR=/opt/audiosift/uploads"
+Environment="OUTPUT_DIR=/opt/audiosift/outputs"
+ExecStart=/opt/audiosift/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
