@@ -8,9 +8,14 @@ on:
 jobs:
   deploy:
     runs-on: self-hosted
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup npm mirror
+        run: npm config set registry https://registry.npmmirror.com
 
       - name: Verify Node.js
         run: node --version && npm --version
@@ -23,11 +28,13 @@ jobs:
 
       - name: Deploy frontend
         run: |
+          mkdir -p /opt/audiosift/frontend
           rm -rf /opt/audiosift/frontend/*
           cp -r dist/* /opt/audiosift/frontend/
 
       - name: Deploy backend
         run: |
+          mkdir -p /opt/audiosift/backend
           cp -f backend/*.py /opt/audiosift/backend/
 
       - name: Restart backend service
@@ -35,7 +42,15 @@ jobs:
 
       - name: Verify deployment
         run: |
-          sleep 3
-          curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/api/health
-          echo ""
-          echo "=== Deploy completed ==="
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/api/health)
+            if [ "$code" = "200" ]; then
+              echo "Health check passed: $code"
+              echo "=== Deploy completed ==="
+              exit 0
+            fi
+            echo "Attempt $i: got $code, retrying in 3s..."
+            sleep 3
+          done
+          echo "Health check failed after 5 attempts"
+          exit 1
