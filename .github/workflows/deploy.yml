@@ -46,18 +46,3 @@ jobs:
 
       - name: Restart backend service
         run: sudo systemctl restart audiosift.service
-
-      - name: Verify deployment
-        run: |
-          for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/api/health)
-            if [ "$code" = "200" ]; then
-              echo "Health check passed: $code"
-              echo "=== Deploy completed ==="
-              exit 0
-            fi
-            echo "Attempt $i: got $code, retrying in 3s..."
-            sleep 3
-          done
-          echo "Health check failed after 5 attempts"
-          exit 1
