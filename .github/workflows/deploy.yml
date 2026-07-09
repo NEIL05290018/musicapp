@@ -37,13 +37,27 @@ jobs:
           mkdir -p /opt/audiosift/backend
           cp -f backend/*.py /opt/audiosift/backend/
 
+      - name: Setup backend Python venv
+        run: |
+          python3 -m venv /opt/audiosift/venv
+          /opt/audiosift/venv/bin/pip install --upgrade pip
+          if [ -f backend/requirements.txt ]; then
+            /opt/audiosift/venv/bin/pip install -r backend/requirements.txt
+          fi
+
+      - name: Install systemd service
+        run: |
+          sudo cp .github/deploy/audiosift.service /etc/systemd/system/audiosift.service
+          sudo systemctl daemon-reload
+          sudo systemctl enable audiosift.service
+
       - name: Restart backend service
-        run: systemctl restart audiosift
+        run: sudo systemctl restart audiosift.service
 
       - name: Verify deployment
         run: |
           for i in 1 2 3 4 5; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/api/health)
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/health)
             if [ "$code" = "200" ]; then
               echo "Health check passed: $code"
               echo "=== Deploy completed ==="

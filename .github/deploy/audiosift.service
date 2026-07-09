@@ -1,0 +1,14 @@
+[Unit]
+Description=AudioSift backend
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/audiosift/backend
+ExecStart=/opt/audiosift/venv/bin/python /opt/audiosift/backend/main.py
+Restart=on-failure
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
