@@ -12,6 +12,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Add Runner Node.js to PATH
+        run: echo "/opt/actions-runner/externals/node20/bin" >> $GITHUB_PATH
+
       - name: Verify Node.js
         run: node --version && npm --version
 
