@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { Play, Pause, Volume2, Download } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { STEM_COLORS, getDownloadUrl } from '@/composables/useAudioUtils'
@@ -16,6 +16,8 @@ const { state, setPlayingTrack } = useAudioStore()
 const color = STEM_COLORS[props.stemType]
 const isPlaying = ref(false)
 const audioRef = ref<HTMLAudioElement>()
+
+const audioSrc = computed(() => getDownloadUrl(props.stemType, state.taskId || '', 'wav'))
 
 const stemLabel: Record<StemType, string> = {
   vocals: '人声',
@@ -71,7 +73,7 @@ onUnmounted(() => {
     class="flex flex-col gap-3 rounded-xl p-4 transition-all duration-300 hover:scale-[1.02]"
     :style="{ backgroundColor: color.bg, border: `1px solid ${color.border}20` }"
   >
-    <audio ref="audioRef" :src="stemUrl" @ended="onEnded" />
+    <audio ref="audioRef" :src="audioSrc" @ended="onEnded" />
 
     <div class="flex items-center gap-2">
       <div class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: color.border }" />
