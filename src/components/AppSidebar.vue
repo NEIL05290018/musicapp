@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  Music, Compass, Sparkles, UserRound,
+  Compass, Sparkles, UserRound,
 } from 'lucide-vue-next'
 
 const router = useRouter()
@@ -26,8 +26,10 @@ function navigate(path: string) {
 <template>
   <aside class="fixed left-0 top-0 z-40 flex h-screen w-[240px] flex-col border-r border-white/[0.06] bg-black/40 backdrop-blur-xl">
     <div class="flex items-center gap-3 px-5 py-6">
-      <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#5b9cff] to-[#e04090] shadow-lg shadow-[#e04090]/20">
-        <Music class="h-4.5 w-4.5 text-white" />
+      <div class="flex h-9 w-9 items-center justify-center rounded-xl bg-[#E53935] shadow-lg shadow-[#E53935]/25">
+        <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M21.5 7L13 8.6V20.5C12.4 20.2 11.7 20 11 20C9.3 20 8 20.9 8 22C8 23.1 9.3 24 11 24C12.7 24 14 23.1 14 22V12.2L21 10.8V18.5C20.4 18.2 19.7 18 19 18C17.3 18 16 18.9 16 20C16 21.1 17.3 22 19 22C20.7 22 22 21.1 22 20V7H21.5V7Z" fill="white"/>
+        </svg>
       </div>
       <span class="text-lg font-semibold tracking-tight text-white">AudioSift</span>
     </div>
