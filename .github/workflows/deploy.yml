@@ -35,14 +35,6 @@ jobs:
       - name: Setup backend directories
         run: mkdir -p /opt/audiosift/{backend,uploads,outputs,logs}
 
-      - name: Install Python dependencies
-        run: |
-          if [ ! -d /opt/audiosift/backend/venv ]; then
-            python3 -m venv /opt/audiosift/backend/venv
-          fi
-          /opt/audiosift/backend/venv/bin/pip install --upgrade pip
-          /opt/audiosift/backend/venv/bin/pip install -r ${{ github.workspace }}/backend/requirements.txt
-
       - name: Deploy backend
         run: cp -f backend/*.py /opt/audiosift/backend/
 
