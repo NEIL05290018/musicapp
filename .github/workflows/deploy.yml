@@ -28,9 +28,9 @@ jobs:
 
       - name: Deploy frontend
         run: |
-          mkdir -p /opt/audiosift/frontend
-          rm -rf /opt/audiosift/frontend/*
-          cp -r dist/* /opt/audiosift/frontend/
+          mkdir -p /www/wwwroot/musicapp
+          rm -rf /www/wwwroot/musicapp/*
+          cp -r dist/* /www/wwwroot/musicapp/
 
       - name: Setup backend directories
         run: mkdir -p /opt/audiosift/{backend,uploads,outputs,logs}

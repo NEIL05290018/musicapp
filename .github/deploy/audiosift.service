@@ -4,8 +4,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
-Group=www-data
+User=root
+Group=root
 WorkingDirectory=/opt/audiosift/backend
 Environment="PATH=/opt/audiosift/backend/venv/bin"
 Environment="UPLOAD_DIR=/opt/audiosift/uploads"
