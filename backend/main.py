@@ -22,6 +22,7 @@ from separator import (
     convert_to_mp3,
     UPLOAD_DIR,
     OUTPUT_DIR,
+    MODEL_NAME,
 )
 
 app = FastAPI(title="AudioSift API", version="2.0.0")
@@ -212,6 +213,13 @@ async def download_stem(stem: str, task_id: str, format: str = "wav"):
 @app.get("/health")
 async def health():
     return {"status": "ok", "gpu_available": torch.cuda.is_available()}
+
+
+@app.on_event("startup")
+async def startup():
+    print(f"Loading model: {MODEL_NAME} ...")
+    model = await get_model()
+    print(f"Model loaded. Sources: {model.sources}")
 
 
 if __name__ == "__main__":
