@@ -1,10 +1,12 @@
 <template>
-  <AppHeader />
-  <main class="pt-16">
+  <AlbumWall />
+  <AppSidebar />
+  <main class="relative z-10 ml-[240px] min-h-screen">
     <router-view />
   </main>
 </template>
 
 <script setup lang="ts">
-import AppHeader from '@/components/AppHeader.vue'
+import AlbumWall from '@/components/AlbumWall.vue'
+import AppSidebar from '@/components/AppSidebar.vue'
 </script>

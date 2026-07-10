@@ -207,7 +207,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div ref="containerRef" class="relative overflow-hidden rounded-lg border border-white/[0.06] bg-[#0d0d14]">
+    <div ref="containerRef" class="relative overflow-hidden rounded-lg border border-white/[0.06] bg-black/20 backdrop-blur-sm">
       <canvas
         ref="canvasRef"
         class="h-32 w-full cursor-crosshair"

@@ -6,7 +6,15 @@ import traeBadgePlugin from 'vite-plugin-trae-solo-badge'
 
 export default defineConfig({
   build: {
-    sourcemap: 'hidden',
+    sourcemap: false,
+    cssMinify: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-icons': ['lucide-vue-next'],
+        },
+      },
+    },
   },
   plugins: [
     vue(),
@@ -31,6 +39,7 @@ export default defineConfig({
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },
