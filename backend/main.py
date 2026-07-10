@@ -81,7 +81,7 @@ def run_separation(task_id: str, file_path: str, start_time: float, end_time: fl
                 model,
                 wav[None],
                 device=device,
-                shifts=1,
+                shifts=2,
                 split=True,
                 overlap=0.25,
                 progress=True,
@@ -95,12 +95,11 @@ def run_separation(task_id: str, file_path: str, start_time: float, end_time: fl
         task_output_dir = OUTPUT_DIR / task_id
         task_output_dir.mkdir(parents=True, exist_ok=True)
 
-        stems_dict = {
-            "vocals": sources[0] if sources.shape[0] > 0 else None,
-            "drums": sources[1] if sources.shape[0] > 1 else None,
-            "bass": sources[2] if sources.shape[0] > 2 else None,
-            "other": sources[3] if sources.shape[0] > 3 else None,
-        }
+        source_names = model.sources
+        stems_dict = {}
+        for i, name in enumerate(source_names):
+            if i < sources.shape[0]:
+                stems_dict[name] = sources[i]
 
         result = merge_stems(stems_dict, task_output_dir, model.samplerate)
 

@@ -15,7 +15,7 @@ OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "outputs"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-MODEL_NAME = os.getenv("DEMUCS_MODEL", "htdemucs")
+MODEL_NAME = os.getenv("DEMUCS_MODEL", "mdx_extra_q")
 
 _model = None
 _model_lock = asyncio.Lock()
