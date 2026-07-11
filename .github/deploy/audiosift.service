@@ -7,10 +7,10 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/opt/audiosift/backend
-Environment="PATH=/opt/audiosift/backend/venv/bin"
+Environment="PATH=/opt/audiosift/venv310/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="UPLOAD_DIR=/opt/audiosift/uploads"
 Environment="OUTPUT_DIR=/opt/audiosift/outputs"
-ExecStart=/opt/audiosift/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+ExecStart=/opt/audiosift/venv310/bin/uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
 
