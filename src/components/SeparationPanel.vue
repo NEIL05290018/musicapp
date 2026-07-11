@@ -84,8 +84,8 @@ function handleStop() {
   <div class="glass-card flex flex-col gap-4 p-4">
     <div class="flex items-center gap-2">
       <Sparkles class="h-4 w-4 text-[#e04090]" />
-      <span class="text-xs font-medium text-white/40">AI 分离引擎</span>
-      <span class="ml-auto rounded-full bg-[#e04090]/10 px-2 py-0.5 text-xs text-[#e04090]">Demucs</span>
+      <span class="text-xs font-semibold text-white/60">AI 分离引擎</span>
+      <span class="ml-auto rounded-full bg-[#e04090]/15 px-2 py-0.5 text-xs font-medium text-[#e04090]">Demucs v4</span>
     </div>
 
     <div class="flex gap-2">
@@ -124,7 +124,7 @@ function handleStop() {
 
       <button
         v-if="isRunning()"
-        class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/[0.08] text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/70"
+        class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/[0.10] text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
         @click="handleStop"
       >
         <Square class="h-4 w-4" />
@@ -141,7 +141,7 @@ function handleStop() {
           :style="{ width: `${state.separationProgress}%` }"
         />
       </div>
-      <div class="flex justify-between text-xs text-white/30">
+      <div class="flex justify-between text-xs text-white/50">
         <span>处理进度</span>
         <span>{{ Math.round(state.separationProgress) }}%</span>
       </div>
@@ -149,7 +149,7 @@ function handleStop() {
 
     <div
       v-if="state.separationStatus === 'error' && state.separationError"
-      class="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-400"
+      class="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300 font-medium"
     >
       {{ state.separationError }}
     </div>

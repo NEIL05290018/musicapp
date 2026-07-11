@@ -21,13 +21,13 @@ const features = [
 <template>
   <div class="mx-auto max-w-[1000px] px-6 pb-20">
     <section class="mb-8 pt-10 text-center">
-      <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-4 py-1.5 backdrop-blur-md">
+      <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.06] px-4 py-1.5 backdrop-blur-md">
         <Sparkles class="h-3.5 w-3.5 text-[#e04090]" />
-        <span class="text-xs text-white/45">Demucs AI · 服务端推理 · 阿里云部署</span>
+        <span class="text-xs text-white/70">Demucs AI · Hybrid Transformer v4 · GPU 加速推理</span>
       </div>
-      <h1 class="mb-3 text-3xl font-bold tracking-tight text-white/90">智能音频分离</h1>
-      <p class="mx-auto max-w-lg text-sm leading-relaxed text-white/35">
-        上传一段音乐，选择时间段，Demucs AI 模型将在服务器端将音频智能分离为人声、配乐和音效三条独立音轨
+      <h1 class="mb-3 text-3xl font-bold tracking-tight text-white/95">智能音频分离</h1>
+      <p class="mx-auto max-w-lg text-sm leading-relaxed text-white/55">
+        上传音乐文件，选择分离时段，AI 模型将精准提取人声、配乐与音效三条独立音轨
       </p>
 
       <div class="mt-5 flex items-center justify-center gap-6">
@@ -37,12 +37,12 @@ const features = [
           class="flex items-center gap-2"
         >
           <div
-            class="flex h-6 w-6 items-center justify-center rounded-md"
-            :style="{ backgroundColor: `${STEM_COLORS[f.key].border}20`, color: STEM_COLORS[f.key].border }"
+            class="flex h-7 w-7 items-center justify-center rounded-lg"
+            :style="{ backgroundColor: `${STEM_COLORS[f.key].border}28`, color: STEM_COLORS[f.key].border }"
           >
-            <component :is="f.icon" class="h-3.5 w-3.5" />
+            <component :is="f.icon" class="h-4 w-4" />
           </div>
-          <span class="text-xs text-white/35">{{ STEM_COLORS[f.key].label }}</span>
+          <span class="text-sm font-medium text-white/65">{{ STEM_COLORS[f.key].label }}</span>
         </div>
       </div>
     </section>
@@ -54,8 +54,8 @@ const features = [
 
       <SeparationPanel v-if="state.audioBuffer" />
 
-      <div v-if="Object.keys(state.results).length > 0" class="flex flex-col gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] p-5 backdrop-blur-xl">
-        <span class="text-xs font-medium text-white/40">分离结果</span>
+      <div v-if="Object.keys(state.results).length > 0" class="flex flex-col gap-3 rounded-2xl border border-white/[0.10] bg-white/[0.05] p-5 backdrop-blur-xl">
+        <span class="text-xs font-semibold text-white/60">分离结果</span>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
           <TrackCard
             v-for="stem in (Object.keys(state.results) as StemType[])"

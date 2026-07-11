@@ -185,21 +185,21 @@ onUnmounted(() => {
   <div v-if="state.audioBuffer" class="glass-card flex flex-col gap-3 p-4">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-medium text-white/40">波形图</span>
-        <span class="rounded bg-white/[0.04] px-2 py-0.5 text-xs text-white/30">
+        <span class="text-xs font-semibold text-white/60">波形图</span>
+        <span class="rounded bg-white/[0.06] px-2 py-0.5 text-xs text-white/50">
           {{ formatTime(state.audioDuration) }}
         </span>
       </div>
       <div class="flex items-center gap-1">
         <button
-          class="flex h-7 w-7 items-center justify-center rounded-md text-white/30 transition-colors hover:bg-white/[0.06] hover:text-white/60"
+          class="flex h-7 w-7 items-center justify-center rounded-md text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
           @click="changeZoom(-2)"
         >
           <ZoomOut class="h-3.5 w-3.5" />
         </button>
-        <span class="min-w-[40px] text-center text-xs text-white/40">{{ zoom.toFixed(0) }}x</span>
+        <span class="min-w-[40px] text-center text-xs text-white/55">{{ zoom.toFixed(0) }}x</span>
         <button
-          class="flex h-7 w-7 items-center justify-center rounded-md text-white/30 transition-colors hover:bg-white/[0.06] hover:text-white/60"
+          class="flex h-7 w-7 items-center justify-center rounded-md text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
           @click="changeZoom(2)"
         >
           <ZoomIn class="h-3.5 w-3.5" />
@@ -226,10 +226,10 @@ onUnmounted(() => {
         class="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-1.5"
       >
         <div class="h-2 w-2 rounded-full bg-[#4f8fff]" />
-        <span class="font-mono text-xs text-white/50">
+        <span class="font-mono text-xs text-white/60">
           {{ formatTime(sel.startTime) }} - {{ formatTime(sel.endTime) }}
         </span>
-        <span class="text-xs text-white/30">({{ (sel.endTime - sel.startTime).toFixed(1) }}s)</span>
+        <span class="text-xs text-white/45">({{ (sel.endTime - sel.startTime).toFixed(1) }}s)</span>
         <button
           class="ml-auto flex h-5 w-5 items-center justify-center rounded text-white/20 transition-colors hover:bg-red-500/10 hover:text-red-400"
           @click="removeTimeSelection(sel.id)"
@@ -239,7 +239,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <p class="text-xs text-white/25">
+    <p class="text-xs text-white/40">
       在波形图上拖拽选取需要分离的时间段 · 滚轮缩放 · 可添加多个选区
     </p>
   </div>

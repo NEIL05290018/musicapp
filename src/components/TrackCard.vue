@@ -78,7 +78,7 @@ onUnmounted(() => {
     <div class="flex items-center gap-2">
       <div class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: color.border }" />
       <span class="text-sm font-medium text-white">{{ stemLabel[stemType] }}</span>
-      <span class="ml-auto text-xs text-white/30">{{ duration.toFixed(1) }}s</span>
+      <span class="ml-auto text-xs text-white/50 tabular-nums">{{ duration.toFixed(1) }}s</span>
     </div>
 
     <div class="h-8 rounded-lg bg-white/[0.03]">

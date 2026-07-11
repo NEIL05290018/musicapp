@@ -86,15 +86,15 @@ function handleReset() {
         <FileAudio class="h-5 w-5 text-[#4f8fff]" />
       </div>
       <div class="min-w-0 flex-1">
-        <p class="truncate text-sm font-medium text-white">{{ state.audioFile.name }}</p>
-        <p class="text-xs text-white/40">
+        <p class="truncate text-sm font-medium text-white/90">{{ state.audioFile.name }}</p>
+        <p class="text-xs text-white/55">
           {{ (state.audioFile.size / 1024 / 1024).toFixed(1) }} MB ·
           {{ state.audioBuffer.numberOfChannels }}声道 ·
           {{ (state.audioBuffer.sampleRate / 1000).toFixed(1) }}kHz
         </p>
       </div>
       <button
-        class="rounded-lg px-3 py-1.5 text-xs text-white/40 transition-colors hover:bg-white/[0.06] hover:text-white/70"
+        class="rounded-lg px-3 py-1.5 text-xs text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
         @click="handleReset"
       >
         更换文件
@@ -122,7 +122,7 @@ function handleReset() {
 
       <div v-if="isLoading" class="flex flex-col items-center gap-3">
         <div class="h-10 w-10 animate-spin rounded-full border-2 border-[#4f8fff]/30 border-t-[#4f8fff]" />
-        <span class="text-sm text-white/50">正在解码音频...</span>
+        <span class="text-sm text-white/65">正在解码音频...</span>
       </div>
 
       <template v-else>
@@ -136,18 +136,18 @@ function handleReset() {
           />
         </div>
         <div class="text-center">
-          <p class="text-sm font-medium text-white/60">
+          <p class="text-sm font-medium text-white/70">
             拖拽音频文件到此处，或<span class="text-[#4f8fff]">点击上传</span>
           </p>
-          <p class="mt-1 text-xs text-white/30">
+          <p class="mt-1 text-xs text-white/45">
             支持 MP3 / WAV / FLAC / OGG / M4A · 最大 100MB
           </p>
         </div>
       </template>
 
       <div v-if="error" class="flex items-center gap-2 rounded-lg bg-red-500/10 px-4 py-2">
-        <AlertCircle class="h-4 w-4 text-red-400" />
-        <span class="text-sm text-red-400">{{ error }}</span>
+        <AlertCircle class="h-4 w-4 text-red-300" />
+        <span class="text-sm text-red-300 font-medium">{{ error }}</span>
       </div>
     </div>
   </div>

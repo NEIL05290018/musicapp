@@ -35,8 +35,8 @@ function downloadSingle(stem: StemType) {
 <template>
   <div v-if="Object.keys(state.results).length > 0" class="glass-card flex flex-col gap-4 p-4">
     <div class="flex items-center gap-2">
-      <Download class="h-4 w-4 text-white/40" />
-      <span class="text-xs font-medium text-white/40">导出设置</span>
+      <Download class="h-4 w-4 text-white/55" />
+      <span class="text-xs font-semibold text-white/60">导出设置</span>
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
@@ -45,7 +45,7 @@ function downloadSingle(stem: StemType) {
           v-for="fmt in (['wav', 'mp3'] as const)"
           :key="fmt"
           class="rounded-md px-4 py-2 text-xs font-medium transition-all duration-200"
-          :class="state.exportFormat === fmt ? 'bg-white/[0.08] text-white shadow-sm' : 'text-white/30 hover:text-white/50'"
+          :class="state.exportFormat === fmt ? 'bg-white/[0.10] text-white shadow-sm' : 'text-white/45 hover:text-white/65'"
           @click="setExportFormat(fmt)"
         >
           {{ fmt === 'wav' ? 'WAV 无损' : 'MP3 压缩' }}
@@ -65,7 +65,7 @@ function downloadSingle(stem: StemType) {
       <button
         v-for="stem in (Object.keys(state.results) as StemType[])"
         :key="stem"
-        class="flex items-center gap-1.5 rounded-lg bg-white/[0.03] px-3 py-1.5 text-xs text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
+        class="flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-1.5 text-xs text-white/50 transition-colors hover:bg-white/[0.10] hover:text-white/80"
         @click="downloadSingle(stem)"
       >
         <Download class="h-3 w-3" />
