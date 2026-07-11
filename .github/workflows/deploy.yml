@@ -38,4 +38,12 @@ jobs:
       - name: Deploy backend
         run: cp -f backend/*.py /opt/audiosift/backend/
 
+      - name: Install systemd service
+        run: |
+          cp -f .github/deploy/audiosift.service /etc/systemd/system/audiosift.service
+          systemctl daemon-reload
+
+      - name: Restart backend service
+        run: systemctl restart audiosift.service || systemctl start audiosift.service
+
 
