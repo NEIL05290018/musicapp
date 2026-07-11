@@ -1,9 +1,9 @@
 ## 1. 产品概述
 
-AudioSift 是一款 AI 驱动的音频智能分离平台。用户上传任意音乐文件后，可选择指定的时间段和需要分离的音轨类型，通过部署在服务器上的 **Meta Demucs 深度学习模型（mdx_extra_q）** 将音频智能分离为 **人声**、**配乐**、**音效** 三条独立音轨，支持 WAV/MP3 格式下载导出。同时内建 **音乐发现** 功能，接入 Meting API（网易云音乐），提供歌单浏览、热门歌曲排行和模拟播放体验。
+AudioSift 是一款 AI 驱动的音频智能分离平台。用户上传任意音乐文件后，可选择指定的时间段和需要分离的音轨类型，通过部署在服务器上的 **Meta Demucs 深度学习模型（mdx_extra_q）** 将音频智能分离为 **人声**、**配乐**、**音效** 三条独立音轨，支持 WAV/MP3 格式下载导出。同时内建 **音乐发现** 功能，接入 Meting API（网易云音乐），提供歌单浏览、热门歌曲排行和模拟播放体验。**v2.1 新增** 用户登录/注册系统（JWT 认证），数据持久化到 **MySQL 8.0**，支持收藏歌曲和歌单。
 
 - **目标用户**：音乐制作人、视频创作者、播客制作者、Remix 爱好者、音乐发烧友
-- **核心价值**：无需安装任何软件，打开浏览器即可完成专业级 AI 音频分离；同时提供丰富的音乐浏览发现体验
+- **核心价值**：无需安装任何软件，打开浏览器即可完成专业级 AI 音频分离；登录后可收藏心仪歌曲和歌单，打造个人音乐空间
 
 ## 2. 核心功能
 
@@ -38,6 +38,14 @@ AudioSift 是一款 AI 驱动的音频智能分离平台。用户上传任意音
 1. **多层 Canvas 背景**：底层专辑封面大图（4s 轮换）+ 中层 60 个漂浮粒子 + 顶层鼠标手电筒擦除效果（destination-out 合成）
 2. **内容层**：大标题 + 技术标签毛玻璃药丸 + 鼠标视差效果
 3. **功能卡片 ×3**：Vocal Extraction / Instrumental Split / Drum Separation，各自以不同速度做滚动视差位移
+
+#### 用户系统（Auth 页面 — `/auth` + MySQL 数据库）
+
+1. **登录/注册页面（AuthPage.vue）**：单页切换登录/注册模式。注册需用户名(2-50字符) + 邮箱 + 密码(≥6位) + 确认密码。登录需邮箱 + 密码。底部提供 4 个测试账号快捷登录按钮。登录/注册成功后自动跳转 `/discover`
+2. **侧边栏用户区（AppSidebar.vue）**：未登录时显示「登录/注册」按钮（渐变色）；已登录时显示用户名、邮箱、收藏统计（"X 首收藏 · Y 个歌单"）、退出按钮。`onMounted` 自动从 localStorage 恢复登录态
+3. **歌曲/歌单收藏系统（DiscoverPage.vue）**：登录后在发现页面顶部展示「我的音乐中心」区块（用户收藏的歌曲和歌单卡片）。每首歌/歌单都有心形（Heart）收藏按钮，点击 toggle 收藏/取消，未登录点击则跳转 `/auth`。收藏状态实时同步（心形填充/空心切换）
+4. **JWT 认证**：后端 `auth.py` 使用 `python-jose` 签发 HS256 JWT Token（24小时过期），`bcrypt` 哈希密码。前端 `useAuthStore.ts` 管理 token（localStorage 持久化），`apiFetch` 自动附带 `Authorization: Bearer` 请求头
+5. **MySQL 数据库**：3 张表 — `users`（用户）、`favorite_songs`（歌曲收藏）、`favorite_playlists`（歌单收藏），通过 SQLAlchemy ORM 管理，应用启动时自动建表。测试数据由 `backend/seed_data.py` 脚本初始化（5 个测试账号 + 各自收藏数据）
 
 ### 2.2 页面详情
 
@@ -115,6 +123,28 @@ Demucs 模型输出 4 条原始音轨，在 `separator.py` 的 `merge_stems()` �
 点击歌曲 → 底部播放器模拟播放
 ```
 
+### 3.4 用户认证流程
+
+```
+访问 /auth → 登录/注册表单
+  ↓
+POST /api/user/login 或 /api/user/register
+  ↓
+后端验证 → bcrypt 密码比对 → 签发 JWT (HS256, 24h)
+  ↓
+前端接收 {token, user} → localStorage 存 token → useAuthStore 更新状态
+  ↓
+router.push('/discover') → AppSidebar 显示用户信息 + 收藏统计
+  ↓
+DiscoverPage 每个歌曲/歌单显示心形按钮 → 点击 toggle 收藏
+  ↓
+POST /api/user/favorite/song 或 /api/user/favorite/playlist
+  ↓
+后端 toggle 模式（已收藏则删除，未收藏则新增） → 返回 {favorited: true/false}
+  ↓
+前端 useAuthStore 同步更新收藏列表 → UI 实时切换心形状态
+```
+
 ## 4. 用户界面设计
 
 ### 4.1 设计风格
@@ -140,7 +170,9 @@ AppSidebar (固定左侧，240px，z-40，backdrop-blur-xl)
 ├── Workbench（Sparkles 图标，激活态：白色文字 + 粉色图标）
 ├── Discover（Compass 图标）
 ├── About（UserRound 图标）
-└── 底部用户区（"Guest" + "Free Plan"）
+└── 底部用户区
+    ├── 未登录 → 「登录 / 注册」渐变色按钮（跳转 /auth）
+    └── 已登录 → 用户名 + 邮箱 + "X首收藏 · Y个歌单" + 退出按钮
 ```
 
 ### 4.3 z-index 层级
@@ -212,11 +244,17 @@ z-50  → 底部播放器（Teleport to body）
 | **页面** | `src/pages/DiscoverPage.vue` | 音乐发现页面 |
 | **页面** | `src/pages/PlaylistPage.vue` | 歌单详情页面 |
 | **页面** | `src/pages/AboutPage.vue` | 品牌展示页面 |
+| **页面** | `src/pages/AuthPage.vue` | 登录/注册页面 |
+| **状态管理** | `src/composables/useAuthStore.ts` | 认证状态管理：token、用户、收藏，localStorage 持久化 |
 | **组件** | `src/components/*.vue` | UploadZone/WaveformViewer/SeparationPanel/TrackCard/ExportPanel/AppSidebar/AlbumWall 等 |
 | **数据** | `src/data/songs.ts` | 30 首模拟歌曲 |
 | **数据** | `src/data/playlists.ts` | 12 个精选歌单 |
 | **样式** | `src/style.css` | Tailwind 指令 + 全局样式 + 自定义 CSS 类 + 动画 |
-| **后端入口** | `backend/main.py` | FastAPI 主入口，4 个 API 端点 |
+| **后端入口** | `backend/main.py` | FastAPI 主入口（v2.1.0），注册 user_router + 启动建表 |
 | **分离器** | `backend/separator.py` | Demucs 模型加载/切片/映射/转码 |
+| **认证模块** | `backend/auth.py` | JWT 签发/验证 + bcrypt 密码哈希 |
+| **用户路由** | `backend/user_routes.py` | 7 个用户/收藏 API 端点 |
+| **数据库模型** | `backend/database.py` | SQLAlchemy ORM：users / favorite_songs / favorite_playlists 三表 |
+| **数据种子** | `backend/seed_data.py` | 初始化 5 个测试账号和收藏数据 |
 | **配置** | `vite.config.ts` | Vite 构建配置，含 /api 代理到 127.0.0.1:8000 |
 | **配置** | `tailwind.config.js` | Tailwind 主题 + 内容扫描 |

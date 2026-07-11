@@ -5,15 +5,16 @@
 │                  浏览器                     │
 │  ┌──────────────────────────────────────┐  │
 │  │     Vue 3 SPA 单页应用               │  │
-│  │   ┌─────┐ ┌──────┐ ┌──────────┐    │  │
-│  │   │路由 │ │状态  │ │Web Audio │    │  │
-│  │   │Vue  │ │reactive│API/Canvas│    │  │
-│  │   │Router│ │Store │ │2D        │    │  │
-│  │   └─────┘ └──────┘ └──────────┘    │  │
-│  └──────────────────────────────────────┘  │
-└──────────────┬─────────────────────────────┘
-               │ REST API (FormData / JSON)
-               ▼
+│  │   ┌─────┐ ┌──────┐ ┌───────┐       │  │
+│  │   │路由 │ │音频  │ │认证   │       │  │
+│  │   │Vue  │ │状态  │ │状态   │       │  │
+│  │   │Router│ │Store │ │Auth   │       │  │
+│  │   └─────┘ └──────┘ └──┬────┘       │  │
+│  │          JWT(token)    │localStorage│  │
+│  └────────────────────────┼────────────┘  │
+└──────────────┬────────────┼───────────────┘
+               │ REST API   │ Bearer Token
+               ▼            ▼
 ┌────────────────────────────────────────────┐
 │              Nginx (端口 80)                │
 │    /          → 前端静态文件               │
@@ -22,27 +23,41 @@
                │
                ▼
 ┌────────────────────────────────────────────┐
-│         FastAPI 后端 (端口 8000 内部)       │
-│  ┌──────────────────────────────────────┐  │
-│  │  POST /api/separate  ← 接收文件      │  │
-│  │  GET  /api/status/id  ← 轮询状态     │  │
-│  │  GET  /api/download/   ← 下载结果    │  │
-│  │  GET  /api/health      ← 健康检查    │  │
-│  └──────────────┬───────────────────────┘  │
-│                 │ threading.Thread          │
-│  ┌──────────────▼───────────────────────┐  │
-│  │  Demucs mdx_extra_q 模型推理         │  │
-│  │  输入: stereo audio → torch tensor   │  │
-│  │  输出: 4 轨 (vocals/drums/bass/other)│  │
-│  │  映射: 4 轨 → 3 轨 (合并策略)        │  │
-│  └──────────────────────────────────────┘  │
-└────────────────────────────────────────────┘
+│         FastAPI 后端 (端口 8000)            │
+│  ┌────────────────┬─────────────────────┐  │
+│  │ 音频分离 API   │ 用户认证 API         │  │
+│  │ POST /separate │ POST /user/register │  │
+│  │ GET  /status   │ POST /user/login    │  │
+│  │ GET  /download │ GET  /user/me       │  │
+│  │ GET  /health   │ 收藏 toggle ×2      │  │
+│  │                │ 收藏查询 ×2         │  │
+│  └───────┬────────┴──────┬──────────────┘  │
+│          │               │                  │
+│  ┌───────▼──────┐ ┌──────▼──────────────┐  │
+│  │ Demucs AI   │ │ SQLAlchemy ORM      │  │
+│  │ 模型推理    │ │ + bcrypt + JWT      │  │
+│  └─────────────┘ └──────┬──────────────┘  │
+└──────────────────────────┼─────────────────┘
+                           │
+                  ┌────────▼──────────┐
+                  │  MySQL 8.0        │
+                  │  数据库: audiosift│
+                  │  ┌──────────────┐ │
+                  │  │ users        │ │
+                  │  │ favorite_    │ │
+                  │  │   songs      │ │
+                  │  │ favorite_    │ │
+                  │  │   playlists  │ │
+                  │  └──────────────┘ │
+                  └───────────────────┘
 ```
 
 **核心说明**：
 - AI 分离在**服务端**运行，使用 threading 线程避免阻塞 FastAPI 事件循环
+- 用户认证使用 **JWT (HS256)**，token 存在前端 `localStorage`，所有需要认证的请求自动带上 `Authorization: Bearer` 请求头
 - 开发模式：Vite 开发代理将 `/api/*` → `http://127.0.0.1:8000`（去除 /api 前缀）
 - 生产模式：Nginx 提供前端静态文件 + `/api/*` 反代到后端
+- MySQL 数据库通过 SQLAlchemy ORM 连接，应用启动时自动建表
 
 ## 2. 技术选型
 
@@ -52,12 +67,14 @@
 | 构建工具 | Vite 5 | HMR，生产关闭 sourcemap，lucide 单独 chunk |
 | 样式方案 | TailwindCSS 3.4 | 原子化 CSS，dark mode class 策略 |
 | 状态管理 | Vue `reactive`（Composable 工厂） | 单例全局状态，无需 Pinia |
-| 路由 | Vue Router 4 (History 模式) | 4 条路由，全部 `() => import()` 懒加载 |
+| 路由 | Vue Router 4 (History 模式) | 5 条路由，全部 `() => import()` 懒加载 |
 | 图标 | lucide-vue-next 0.511 | SVG 图标 |
-| HTTP | 原生 fetch + FormData | 文件上传 + JSON 轮询 |
+| HTTP | 原生 fetch + FormData | 文件上传 + JSON 轮询，请求自动带 JWT |
 | Canvas | 原生 2D API | 波形图、AlbumWall、About 粒子 |
 | 音频 | Web Audio API (AudioContext) | 浏览器端解码 AudioBuffer |
 | 后端框架 | FastAPI (Python) | 异步 API，CORS 全开 |
+| 认证 | python-jose + bcrypt + passlib | JWT HS256（24h过期） + bcrypt 密码哈希 |
+| 数据库 | MySQL 8.0 + SQLAlchemy 2.0 + PyMySQL | ORM 管理 users / favorite_songs / favorite_playlists 三表 |
 | AI 模型 | Demucs `mdx_extra_q` | Meta 预训练，Hybrid Transformer |
 | 音频处理 | torchaudio + soundfile + ffmpeg | 读取、重采样、切片、转码 |
 | 部署 | ECS + Nginx + systemd | GitHub Actions 自托管 Runner |
@@ -76,6 +93,7 @@ const router = createRouter({
     { path: '/discover',              name: 'discover',  component: () => import('@/pages/DiscoverPage.vue') },
     { path: '/discover/playlist/:id', name: 'playlist',  component: () => import('@/pages/PlaylistPage.vue') },
     { path: '/about',                 name: 'about',     component: () => import('@/pages/AboutPage.vue') },
+    { path: '/auth',                  name: 'auth',      component: () => import('@/pages/AuthPage.vue') },
   ],
 })
 ```
@@ -83,9 +101,10 @@ const router = createRouter({
 | 路径 | 路由名 | 页面组件 | 功能 |
 |------|--------|----------|------|
 | `/` | workbench | HomePage.vue | 主工作台（上传→波形→分离→预览→导出） |
-| `/discover` | discover | DiscoverPage.vue | 音乐发现（Banner/热歌/新歌/歌单/搜索） |
+| `/discover` | discover | DiscoverPage.vue | 音乐发现（Banner/热歌/新歌/歌单/搜索 + 收藏） |
 | `/discover/playlist/:id` | playlist | PlaylistPage.vue | 歌单详情（动态路由 `:id`） |
 | `/about` | about | AboutPage.vue | 品牌展示（多层 Canvas 动画） |
+| `/auth` | auth | AuthPage.vue | 登录/注册页面 |
 
 > **添加新页面**：在此文件 routes 数组中新增一条，再在 AppSidebar.vue 的 navItems 中添加导航项。
 
@@ -94,7 +113,7 @@ const router = createRouter({
 ```
 App.vue (根布局)
 ├── AlbumWall.vue          ← 全局背景，9×7 封面无限滚动
-├── AppSidebar.vue         ← 240px 固定侧栏，3 个导航项
+├── AppSidebar.vue         ← 240px 固定侧栏，3 个导航项 + 用户区（登录态/未登录态）
 └── <router-view />        ← 主内容区 ml-[240px]
 
     ├── HomePage.vue [/]                    工作台
@@ -104,18 +123,24 @@ App.vue (根布局)
     │   ├── TrackCard.vue ×3               播放 + 音量 + 下载
     │   └── ExportPanel.vue                WAV/MP3 + 打包下载
 
-    ├── DiscoverPage.vue [/discover]        音乐发现
+    ├── DiscoverPage.vue [/discover]        音乐发现（v2.1：集成收藏）
+    │   ├── 我的音乐中心 (登录后可见：收藏歌曲+歌单卡片)
     │   ├── Banner 区 (3 列渐变卡片)
-    │   ├── Trending Now (横向 scroll-snap)
-    │   ├── New Releases (纵向列表)
-    │   ├── Featured Playlists (6 列 Grid)
-    │   ├── Browse All (搜索 + 流派筛选)
+    │   ├── Trending Now (横向 scroll-snap，心形收藏按钮)
+    │   ├── New Releases (纵向列表，心形收藏按钮)
+    │   ├── Featured Playlists (6 列 Grid，心形收藏按钮)
+    │   ├── Browse All (搜索 + 流派筛选，心形收藏按钮)
     │   └── 底部播放器 (Teleport to body)
 
     ├── PlaylistPage.vue [/discover/playlist/:id]
     │   ├── 头部（返回 + 封面 + 歌单信息）
     │   ├── 歌曲列表
     │   └── 底部播放器
+
+    ├── AuthPage.vue [/auth]               登录/注册
+    │   ├── 登录模式（邮箱 + 密码）
+    │   ├── 注册模式（用户名 + 邮箱 + 密码 + 确认密码）
+    │   └── 测试账号快捷登录按钮 ×4
 
     └── AboutPage.vue [/about]
         ├── Canvas 背景层 (封面轮换)
@@ -227,6 +252,64 @@ export interface AudioState {
 
 > **修改指引**：增加歌曲直接在 songs.ts 的数组中追加；增加歌单在 playlists.ts 中追加，songIds 引用 songs.ts 中的 id。
 
+### 5.6 useAuthStore（认证状态管理）★ v2.1 新增
+
+**文件**: [src/composables/useAuthStore.ts](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/src/composables/useAuthStore.ts)
+
+和 `useAudioStore` 同样的 `reactive` + 工厂函数模式，管理认证和收藏。
+
+```typescript
+interface AuthState {
+  token: string                        // JWT token（localStorage 持久化）
+  user: UserInfo | null                // 当前登录用户
+  favoriteSongIds: string[]            // 收藏的歌曲 ID 列表
+  favoritePlaylistIds: string[]        // 收藏的歌单 ID 列表
+}
+```
+
+| 函数 | 用途 |
+|------|------|
+| `register(username, email, password)` | POST /api/user/register → 存 token → 加载收藏 |
+| `login(email, password)` | POST /api/user/login → 存 token → 加载收藏 |
+| `restoreSession()` | 从 localStorage 恢复 token → GET /api/user/me 验证 → 加载收藏 |
+| `clearAuth()` | 清除 token + user + 收藏（退出登录） |
+| `toggleFavoriteSong(songId)` | POST /api/user/favorite/song toggle → 同步本地收藏列表 |
+| `toggleFavoritePlaylist(playlistId)` | POST /api/user/favorite/playlist toggle → 同步本地收藏列表 |
+| `isSongFavorited(songId)` | 判断歌曲是否已收藏（用于 UI 心形状态） |
+| `isPlaylistFavorited(id)` | 判断歌单是否已收藏（用于 UI 心形状态） |
+| `apiFetch(path, options)` | 内部方法：自动带 `Authorization: Bearer` 请求头 |
+
+**Token 持久化策略**：登录/注册成功后 `localStorage.setItem('auth_token', token)`；页面刷新后在 AppSidebar `onMounted` 调用 `restoreSession()` 恢复。
+
+**收藏交互模式**：后端收藏接口使用 toggle 模式（已收藏则 DELETE，未收藏则 INSERT），返回 `{favorited: true/false}`。前端根据返回值同步本地数组，实现 UI 即时切换。
+
+### 5.7 数据库结构 ★ v2.1 新增
+
+**文件**: [backend/database.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/database.py)
+
+| 表名 | 字段 | 说明 |
+|------|------|------|
+| `users` | `id` (PK), `username` (UNIQUE), `email` (UNIQUE), `password_hash`, `avatar_url`, `created_at` | 用户表 |
+| `favorite_songs` | `id` (PK), `user_id` (INDEX), `song_id`, `created_at` | 歌曲收藏关联表 |
+| `favorite_playlists` | `id` (PK), `user_id` (INDEX), `playlist_id`, `created_at` | 歌单收藏关联表 |
+
+连接配置通过环境变量：`DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME`（默认连接 `localhost:3306/audiosift`）。驱动：`mysql+pymysql`，连接池 5 连接，每小时回收。
+
+应用到 MySQL 的连接链路：
+```
+FastAPI startup → Base.metadata.create_all(bind=engine) → 自动建表
+请求进来 → get_db() → yield Session → 请求结束 → db.close()
+```
+
+**后端模块职责划分**（v2.1）：
+
+| 文件 | 职责 |
+|------|------|
+| [database.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/database.py) | SQLAlchemy ORM 模型 + 数据库连接配置 |
+| [auth.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/auth.py) | bcrypt 密码哈希 + JWT 签发/验证 + `get_current_user` 依赖 |
+| [user_routes.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/user_routes.py) | 7 个用户/收藏 API 端点（前缀 `/user`） |
+| [seed_data.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/seed_data.py) | 测试数据初始化脚本（5 用户 + 收藏） |
+
 ## 6. 全局样式体系
 
 **文件**: [src/style.css](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/src/style.css)
@@ -289,6 +372,24 @@ export interface AudioState {
 ### 7.4 GET /health — 健康检查
 
 响应：`{ "status": "ok", "gpu_available": true/false }`
+
+### 7.5 用户认证 API ★ v2.1 新增
+
+**文件**: [backend/user_routes.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/user_routes.py)（前缀 `/user`）
+
+| 端点 | 方法 | 认证 | 请求 | 响应 |
+|------|------|------|------|------|
+| `/user/register` | POST | 无 | `{username, email, password}` | `{token, user}` |
+| `/user/login` | POST | 无 | `{email, password}` | `{token, user}` |
+| `/user/me` | GET | Bearer | — | `{user}` |
+| `/user/favorite/song` | POST | Bearer | `{song_id}` | `{favorited: bool, song_id}` |
+| `/user/favorite/playlist` | POST | Bearer | `{playlist_id}` | `{favorited: bool, playlist_id}` |
+| `/user/favorites/songs` | GET | Bearer | — | `{song_ids: [...]}` |
+| `/user/favorites/playlists` | GET | Bearer | — | `{playlist_ids: [...]}` |
+
+**注册校验**：用户名 2-50 字符，密码 ≥ 6 位，用户名和邮箱不可重复。
+
+**收藏接口**采用 toggle 模式：已有记录则 DELETE（取消收藏），无记录则 INSERT（添加收藏），返回当前收藏状态。
 
 ## 8. 完整数据流（音频分离全链路）
 
@@ -456,6 +557,12 @@ sources = sources * ref.std() + ref.mean()  # 反归一化
 | 改 4→3 轨映射 | `separator.py` 的 `merge_stems()` | 重写合并逻辑 |
 | 改模型推理质量/速度 | `main.py` 的 `apply_model()` 参数 | 改 `shifts`/`overlap` |
 | 改 WAV→MP3 码率 | `separator.py` 的 `convert_to_mp3()` | 改 `"-b:a", "320k"` |
+| 改 JWT 过期时间 | `auth.py` 的 `ACCESS_TOKEN_EXPIRE_HOURS` | 改 `24` |
+| 改密码强度要求 | `user_routes.py` 的注册校验 | 改 `len(req.password) < 6` |
+| 加新用户字段（如头像URL） | `database.py` User 类 + `user_routes.py` | 加 Column + 改 to_dict + 改 API |
+| 改数据库连接 | `database.py` 的 `DATABASE_URL` 或环境变量 | 改 `DB_HOST`/`DB_USER`/`DB_PASSWORD`/`DB_NAME` |
+| 加收藏新类型（如专辑收藏） | 参考 `favorite_songs` 模式 | backend 建表 + API + 前端 useAuthStore 加方法 |
+| 加 JWT 刷新（refresh token） | `auth.py` 加 `refresh_token` 函数 + `user_routes.py` 加接口 | 签一个更长时效的 token |
 
 ## 11. 构建与开发配置
 

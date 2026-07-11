@@ -2,16 +2,23 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  Sparkles, TrendingUp, Clock, Compass, Search,
+  Sparkles, TrendingUp, Clock, Compass, Search, Heart, UserRound,
   Play, Pause, SkipBack, SkipForward, ListMusic, Loader2, Music2
 } from 'lucide-vue-next'
-import { playlists, getNewSongs, getTopSongs } from '@/data/playlists'
+import { playlists } from '@/data/playlists'
 import type { Song } from '@/data/songs'
 import { songs, genres } from '@/data/songs'
 import { searchSongs, resolvePlayableUrl, type MusicApiSong } from '@/composables/useMusicApi'
+import { useAuthStore } from '@/composables/useAuthStore'
 import SongDetailModal from '@/components/SongDetailModal.vue'
 
+interface ApiSong extends Song {
+  coverUrl: string
+  audioSrc: string
+}
+
 const router = useRouter()
+const auth = useAuthStore()
 
 const GLASS_COLORS = [
   { name: 'rose', rgb: '224,64,144', hex: '#e04090' },
@@ -41,8 +48,59 @@ function assignColor() {
   return color
 }
 
-const newSongs = ref<Song[]>(getNewSongs(8))
-const topSongs = ref<Song[]>(getTopSongs(10))
+const favoriteSongs = computed(() => {
+  return songs.filter(s => auth.isSongFavorited(s.id))
+})
+
+const favoritePlaylists = computed(() => {
+  return playlists.filter(p => auth.isPlaylistFavorited(p.id))
+})
+
+const isLoggedIn = computed(() => auth.isLoggedIn())
+
+async function handleToggleSongFav(songId: string, event: Event) {
+  event.stopPropagation()
+  if (!isLoggedIn.value) {
+    router.push('/auth')
+    return
+  }
+  try {
+    await auth.toggleFavoriteSong(songId)
+  } catch {
+    // silently fail
+  }
+}
+
+async function handleTogglePlaylistFav(playlistId: string, event: Event) {
+  event.stopPropagation()
+  if (!isLoggedIn.value) {
+    router.push('/auth')
+    return
+  }
+  try {
+    await auth.toggleFavoritePlaylist(playlistId)
+  } catch {
+    // silently fail
+  }
+}
+
+function apiToSong(api: MusicApiSong, idx: number): ApiSong {
+  return {
+    id: api.id,
+    title: api.title,
+    artist: api.artist,
+    album: api.album,
+    duration: api.duration,
+    coverIndex: (idx % 30) + 1,
+    coverUrl: api.coverUrl,
+    audioSrc: api.audioUrl,
+    genre: '',
+    year: 2024,
+  }
+}
+
+const newSongs = ref<ApiSong[]>([])
+const topSongs = ref<ApiSong[]>([])
 const searchQuery = ref('')
 const selectedGenre = ref('')
 const allSongs = ref<Song[]>(songs)
@@ -87,7 +145,11 @@ const filteredSongs = computed(() => {
   return result
 })
 
-function getCover(index: number): string {
+function getCover(indexOrSong: number | Song | ApiSong): string {
+  if (typeof indexOrSong === 'object' && 'coverUrl' in indexOrSong && indexOrSong.coverUrl) {
+    return indexOrSong.coverUrl
+  }
+  const index = typeof indexOrSong === 'number' ? indexOrSong : indexOrSong.coverIndex
   return `/albums/album-${((index - 1) % 30) + 1}.jpg`
 }
 
@@ -152,15 +214,15 @@ function playSongFromList(song: Song, source: Song[]) {
   startPlayback(song)
 }
 
-async function startPlayback(song: Song) {
+async function startPlayback(song: Song | ApiSong) {
   isPlaying.value = true
   currentTime.value = 0
   duration.value = song.duration || 200
 
-  const matched = apiSongs.value.find(a => a.title === song.title && a.artist === song.artist)
-  if (matched && matched.audioUrl) {
+  const apiSong = song as ApiSong
+  if (apiSong.audioSrc) {
     isLoadingAudioUrl.value = true
-    const playUrl = await resolvePlayableUrl(matched.audioUrl)
+    const playUrl = await resolvePlayableUrl(apiSong.audioSrc)
     isLoadingAudioUrl.value = false
 
     if (playUrl) {
@@ -273,10 +335,29 @@ function progressPercent(): string {
 
 onMounted(async () => {
   isLoadingApi.value = true
-  const result = await searchSongs('', 16)
+
+  const queries = ['周杰伦', 'Taylor Swift', '邓紫棋', '林俊杰', 'Ed Sheeran', 'BTS']
+  const allResults: MusicApiSong[] = []
+
+  for (const q of queries) {
+    const batch = await searchSongs(q, 6)
+    allResults.push(...batch)
+  }
+
+  const unique = allResults.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i)
+
+  if (unique.length >= 8) {
+    topSongs.value = unique.slice(0, 10).map((s, i) => apiToSong(s, i))
+    newSongs.value = unique.slice(10, 18).map((s, i) => apiToSong(s, i + 10))
+  } else if (unique.length > 0) {
+    topSongs.value = unique.slice(0, Math.min(10, unique.length)).map((s, i) => apiToSong(s, i))
+  }
+
+  apiSongs.value = unique
   isLoadingApi.value = false
-  if (result.length > 0) {
-    apiSongs.value = result
+
+  if (!auth.isLoggedIn()) {
+    await auth.restoreSession()
   }
 })
 
@@ -303,6 +384,89 @@ watch(playingSong, (song) => {
         <span class="text-xs font-medium text-emerald-400">在线曲库已连接</span>
       </div>
     </div>
+
+    <section v-if="isLoggedIn" class="mb-10">
+      <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-sm p-6">
+        <div class="flex items-center gap-3 mb-5">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#e04090] to-[#5b9cff]">
+            <UserRound class="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h2 class="text-sm font-semibold text-white">我的音乐中心</h2>
+            <p class="text-xs text-white/35">
+              <Heart class="inline h-3 w-3 text-[#e04090] mr-1" />
+              {{ auth.state.favoriteSongIds.length }} 首收藏歌曲 · {{ auth.state.favoritePlaylistIds.length }} 个收藏歌单
+            </p>
+          </div>
+        </div>
+
+        <div v-if="favoriteSongs.length > 0">
+          <div class="mb-3 flex items-center gap-2">
+            <Heart class="h-3.5 w-3.5 text-[#e04090]" />
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-white/50">收藏歌曲</h3>
+          </div>
+          <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+            <div
+              v-for="(song, idx) in favoriteSongs" :key="'fav-' + song.id"
+              class="group shrink-0 w-[160px] cursor-pointer rounded-xl bg-white/[0.04] p-2.5 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] border border-white/[0.04] hover:border-white/[0.10]"
+              @click="playSongFromList(song, favoriteSongs)"
+              @dblclick="openSongDetail(song)"
+            >
+              <div class="relative mb-2.5 aspect-square overflow-hidden rounded-lg">
+                <img :src="getCover(song)" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
+                  <Play v-if="playingSong?.id !== song.id || !isPlaying" class="h-7 w-7 text-white" />
+                  <Pause v-else class="h-7 w-7 text-white" />
+                </div>
+                <button
+                  class="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-[#e04090] backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                  @click="handleToggleSongFav(song.id, $event)"
+                >
+                  <Heart class="h-3.5 w-3.5" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
+                </button>
+              </div>
+              <p class="text-xs font-medium text-white/80 truncate">{{ song.title }}</p>
+              <p class="text-[10px] text-white/35 truncate mt-0.5">{{ song.artist }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="favoritePlaylists.length > 0" class="mt-5">
+          <div class="mb-3 flex items-center gap-2">
+            <ListMusic class="h-3.5 w-3.5 text-[#5b9cff]" />
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-white/50">收藏歌单</h3>
+          </div>
+          <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+            <div
+              v-for="(pl, idx) in favoritePlaylists" :key="'favpl-' + pl.id"
+              class="group shrink-0 w-[160px] cursor-pointer rounded-xl bg-white/[0.04] p-2.5 backdrop-blur-sm transition-all duration-300 hover:scale-[1.02] border border-white/[0.04] hover:border-white/[0.10]"
+              @click="openPlaylist(pl.id)"
+            >
+              <div class="relative mb-2.5 aspect-square overflow-hidden rounded-lg">
+                <img :src="getCover(pl.coverIndex)" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+                <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <ListMusic class="h-7 w-7 text-white" />
+                </div>
+                <button
+                  class="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-[#5b9cff] backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                  @click="handleTogglePlaylistFav(pl.id, $event)"
+                >
+                  <Heart class="h-3.5 w-3.5" :class="auth.isPlaylistFavorited(pl.id) ? 'fill-[#5b9cff]' : ''" />
+                </button>
+              </div>
+              <p class="text-xs font-medium text-white/80 truncate">{{ pl.name }}</p>
+              <p class="text-[10px] text-white/35 truncate mt-0.5">{{ pl.description }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="favoriteSongs.length === 0 && favoritePlaylists.length === 0" class="text-center py-6">
+          <Heart class="mx-auto h-8 w-8 text-white/10 mb-2" />
+          <p class="text-sm text-white/25">还没有收藏内容</p>
+          <p class="text-xs text-white/15 mt-1">浏览下方歌曲和歌单，点击心形图标即可收藏</p>
+        </div>
+      </div>
+    </section>
 
     <div class="mb-12 grid grid-cols-3 gap-4">
       <div
@@ -343,11 +507,18 @@ watch(playingSong, (song) => {
           @dblclick="openSongDetail(song)"
         >
           <div class="relative mb-3 aspect-square overflow-hidden rounded-lg">
-            <img :src="getCover(song.coverIndex)" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+            <img :src="getCover(song)" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
             <div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/30">
               <Play v-if="playingSong?.id !== song.id || !isPlaying" class="h-8 w-8 text-white" />
               <Pause v-else class="h-8 w-8 text-white" />
             </div>
+            <button
+              class="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-[#e04090]"
+              :class="auth.isSongFavorited(song.id) ? '!opacity-100 !text-[#e04090]' : ''"
+              @click="handleToggleSongFav(song.id, $event)"
+            >
+              <Heart class="h-4 w-4" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
+            </button>
           </div>
           <p class="text-sm font-medium text-white/85 truncate">{{ song.title }}</p>
           <p class="text-xs text-white/40 truncate mt-0.5">{{ song.artist }}</p>
@@ -377,12 +548,19 @@ watch(playingSong, (song) => {
         >
           <span class="w-6 text-right text-xs text-white/35 tabular-nums">{{ idx + 1 }}</span>
           <div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg">
-            <img :src="getCover(song.coverIndex)" class="h-full w-full object-cover" />
+            <img :src="getCover(song)" class="h-full w-full object-cover" />
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-white/85 truncate">{{ song.title }}</p>
             <p class="text-xs text-white/40 truncate">{{ song.artist }} · {{ song.album }}</p>
           </div>
+          <button
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/25 hover:text-[#e04090] hover:bg-white/[0.08] transition-all"
+            :class="auth.isSongFavorited(song.id) ? '!text-[#e04090]' : ''"
+            @click="handleToggleSongFav(song.id, $event)"
+          >
+            <Heart class="h-4 w-4" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
+          </button>
           <span class="text-xs text-white/30 tabular-nums">{{ formatDuration(song.duration) }}</span>
         </div>
       </div>
@@ -407,6 +585,13 @@ watch(playingSong, (song) => {
             <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <ListMusic class="h-8 w-8 text-white" />
             </div>
+            <button
+              class="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-[#5b9cff]"
+              :class="auth.isPlaylistFavorited(pl.id) ? '!opacity-100 !text-[#5b9cff]' : ''"
+              @click="handleTogglePlaylistFav(pl.id, $event)"
+            >
+              <Heart class="h-4 w-4" :class="auth.isPlaylistFavorited(pl.id) ? 'fill-[#5b9cff]' : ''" />
+            </button>
           </div>
           <p class="text-sm font-medium text-white/85 truncate">{{ pl.name }}</p>
           <p class="text-xs text-white/35 truncate mt-0.5">{{ pl.description }}</p>
@@ -446,13 +631,20 @@ watch(playingSong, (song) => {
           @dblclick="openSongDetail(song)"
         >
           <div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg">
-            <img :src="getCover(song.coverIndex)" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+            <img :src="getCover(song)" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
           </div>
           <div class="flex-1 min-w-0">
             <p class="text-sm font-medium text-white/85 truncate">{{ song.title }}</p>
             <p class="text-xs text-white/40 truncate">{{ song.artist }} · {{ song.album }}</p>
           </div>
           <span class="w-16 text-right shrink-0 rounded-md border border-white/[0.06] bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/30">{{ song.genre }}</span>
+          <button
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/20 hover:text-[#e04090] hover:bg-white/[0.08] transition-all"
+            :class="auth.isSongFavorited(song.id) ? '!text-[#e04090]' : ''"
+            @click="handleToggleSongFav(song.id, $event)"
+          >
+            <Heart class="h-3.5 w-3.5" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
+          </button>
           <span class="w-12 text-right text-xs text-white/30 tabular-nums">{{ formatDuration(song.duration) }}</span>
         </div>
         <div v-if="filteredSongs.length === 0" class="flex flex-col items-center justify-center py-16">
@@ -469,7 +661,7 @@ watch(playingSong, (song) => {
           <div class="flex items-center gap-4 px-6 py-3">
             <div class="flex items-center gap-3 flex-1 min-w-0">
               <div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/[0.08]">
-                <img :src="getCover(playingSong.coverIndex)" class="h-full w-full object-cover" />
+                <img :src="getCover(playingSong as ApiSong)" class="h-full w-full object-cover" />
               </div>
               <div class="min-w-0">
                 <p class="text-sm font-medium text-white truncate">{{ playingSong.title }}</p>

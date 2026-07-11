@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  Compass, Sparkles, UserRound,
+  Compass, Sparkles, UserRound, LogIn, LogOut, Heart,
 } from 'lucide-vue-next'
+import { useAuthStore } from '@/composables/useAuthStore'
 
 const router = useRouter()
 const route = useRoute()
+const auth = useAuthStore()
 
 const navItems = [
   { path: '/', name: 'workbench', label: 'Workbench', icon: Sparkles },
@@ -14,12 +16,27 @@ const navItems = [
   { path: '/about', name: 'about', label: 'About', icon: UserRound },
 ]
 
+onMounted(async () => {
+  if (!auth.isLoggedIn()) {
+    await auth.restoreSession()
+  }
+})
+
 function isActive(path: string): boolean {
   return route.path === path
 }
 
 function navigate(path: string) {
   router.push(path)
+}
+
+function handleLogout() {
+  auth.clearAuth()
+  router.push('/discover')
+}
+
+function goToAuth() {
+  router.push('/auth')
 }
 </script>
 
@@ -53,16 +70,40 @@ function navigate(path: string) {
       </div>
     </nav>
 
-    <div class="border-t border-white/[0.06] px-5 pb-6 pt-4">
-      <div class="flex items-center gap-3 rounded-lg px-3 py-2">
-        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5b9cff]/30 to-[#e04090]/30">
-          <UserRound class="h-4 w-4 text-white/50" />
+    <div class="border-t border-white/[0.06] px-3 py-4">
+      <template v-if="auth.isLoggedIn() && auth.state.user">
+        <div class="flex items-center gap-3 rounded-lg px-3 py-2">
+          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#5b9cff]/40 to-[#e04090]/40 ring-1 ring-white/[0.10]">
+            <UserRound class="h-4 w-4 text-white/70" />
+          </div>
+          <div class="flex flex-col flex-1 min-w-0">
+            <span class="text-xs font-medium text-white/70 truncate">{{ auth.state.user.username }}</span>
+            <span class="text-[10px] text-white/35 truncate">{{ auth.state.user.email }}</span>
+          </div>
         </div>
-        <div class="flex flex-col">
-          <span class="text-xs font-medium text-white/60">Guest</span>
-          <span class="text-[10px] text-white/25">Free Plan</span>
+        <div class="mt-2 flex items-center gap-1 text-[10px] text-white/25 px-3">
+          <Heart class="h-3 w-3 text-[#e04090]" />
+          <span>{{ auth.state.favoriteSongIds.length }} 首收藏</span>
+          <span class="mx-1">·</span>
+          <span>{{ auth.state.favoritePlaylistIds.length }} 个歌单</span>
         </div>
-      </div>
+        <button
+          class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] px-3 py-2 text-xs text-white/45 hover:bg-white/[0.06] hover:text-white/70 transition-all"
+          @click="handleLogout"
+        >
+          <LogOut class="h-3.5 w-3.5" />
+          <span>退出登录</span>
+        </button>
+      </template>
+      <template v-else>
+        <button
+          class="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#e04090] to-[#5b9cff] px-3 py-2.5 text-xs font-medium text-white transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-[#e04090]/20 active:scale-[0.98]"
+          @click="goToAuth"
+        >
+          <LogIn class="h-3.5 w-3.5" />
+          <span>登录 / 注册</span>
+        </button>
+      </template>
     </div>
   </aside>
 </template>

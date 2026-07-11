@@ -6,13 +6,14 @@
 
 ## 1. 一分钟了解这个项目
 
-**AudioSift** = 一个 AI 音频分离 Web 应用。你把 MP3 拖进去 → AI 帮你把人声、配乐、音效拆开 → 下载三个独立的音频文件。
+**AudioSift** = 一个 AI 音频分离 Web 应用。你把 MP3 拖进去 → AI 帮你把人声、配乐、音效拆开 → 下载三个独立的音频文件。v2.1 新增了登录系统 + MySQL 数据库，支持收藏歌曲和歌单。
 
 ```
 拖拽上传 → 看波形 → 点"开始分离" → 等待 AI 处理 → 试听/下载三个音轨
+        ↳ 登录后 → 收藏喜欢的歌曲和歌单
 ```
 
-**技术栈一句话**：Vue 3 前端 + FastAPI Python 后端 + Meta Demucs AI 模型。
+**技术栈一句话**：Vue 3 前端 + FastAPI Python 后端 + Meta Demucs AI 模型 + MySQL 8.0 数据库。
 
 ---
 
@@ -22,7 +23,34 @@
 
 - Node.js 18+（前端）
 - Python 3.10+（后端）
+- MySQL 8.0+（数据库）
 - 约 10GB 磁盘空间（AI 模型权重约 160MB）
+
+### 2.1.1 数据库准备
+
+```bash
+# 登录 MySQL
+mysql -u root -p
+
+# 创建数据库
+CREATE DATABASE audiosift DEFAULT CHARSET utf8mb4;
+
+# 退出
+exit;
+```
+
+环境变量（可选，不设则使用默认值）：
+```bash
+# 数据库连接（默认值）
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=your_password
+DB_NAME=audiosift
+
+# JWT 密钥（默认值）
+JWT_SECRET_KEY=your-secret-key
+```
 
 ### 2.2 启动后端
 
@@ -43,7 +71,25 @@ python main.py
 
 看到 `Model loaded. Sources: ['drums', 'bass', 'other', 'vocals']` 就表示后端就绪。
 
+启动时会自动在 MySQL 中创建 `users`、`favorite_songs`、`favorite_playlists` 三张表。
+
+**初始化测试数据**（可选，给数据库填充 5 个测试账号）：
+```bash
+cd backend
+python seed_data.py
+```
+
 **验证**：打开浏览器访问 http://localhost:8000/health，看到 `{"status":"ok","gpu_available":false}` 表示正常。
+
+测试账号（运行 seed_data.py 后可用）：
+
+| 邮箱 | 密码 |
+|------|------|
+| test@alice.com | password123 |
+| test@bob.com | password123 |
+| test@carol.com | password123 |
+| admin@audiosift.com | admin123 |
+| guest@audiosift.com | guest123 |
 
 ### 2.3 启动前端
 
@@ -96,6 +142,7 @@ const router = createRouter({
     { path: '/discover',              component: () => import('@/pages/DiscoverPage.vue') },
     { path: '/discover/playlist/:id', component: () => import('@/pages/PlaylistPage.vue') },
     { path: '/about',                 component: () => import('@/pages/AboutPage.vue') },
+    { path: '/auth',                  component: () => import('@/pages/AuthPage.vue') },
   ],
 })
 ```
@@ -133,7 +180,44 @@ export function useAudioStore() {
 | `results` | 分离完成的音轨 | SeparationPanel(轮询) | TrackCard, ExportPanel |
 | `volumes` | 各音轨音量 | TrackCard(滑块) | TrackCard(播放时用) |
 
-### 3.4 组件逐个讲
+### 3.4 用户认证 —— useAuthStore（v2.1 新增）
+
+[文件: src/composables/useAuthStore.ts](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/src/composables/useAuthStore.ts)
+
+和 `useAudioStore` 同样的 `reactive` + 工厂函数模式。管理三件事：**Token**、**用户信息**、**收藏列表**。
+
+```typescript
+// 核心数据结构
+const state = reactive({
+  token: '',                          // JWT，存在 localStorage
+  user: null,                         // { id, username, email, avatar_url }
+  favoriteSongIds: [],                // 收藏的歌曲 ID 列表
+  favoritePlaylistIds: [],            // 收藏的歌单 ID 列表
+})
+```
+
+**关键函数**：
+
+| 函数 | 流程 |
+|------|------|
+| `register(username, email, password)` | `apiFetch('/user/register', POST)` → `setAuth(token, user)` → `loadFavorites()` |
+| `login(email, password)` | `apiFetch('/user/login', POST)` → `setAuth(token, user)` → `loadFavorites()` |
+| `restoreSession()` | 从 localStorage 取 token → `apiFetch('/user/me')` 验证 → `loadFavorites()` |
+| `toggleFavoriteSong(songId)` | `apiFetch('/user/favorite/song', POST)` → 根据返回的 `favorited` 增删本地数组 |
+| `clearAuth()` | 清空 token + user + 收藏 → `localStorage.removeItem('auth_token')` |
+
+**JWT 怎么传**：`apiFetch()` 内部自动在每个请求头加上 `Authorization: Bearer <token>`。
+
+**Token 持久化流程**：
+```
+登录成功 → localStorage.setItem('auth_token', token)
+  ↓
+页面刷新 → AppSidebar onMounted → restoreSession()
+  ↓
+GET /api/user/me (带 Bearer Token) → 验证通过 → 恢复用户状态和收藏
+```
+
+### 3.5 组件逐个讲
 
 #### UploadZone.vue —— 上传入口
 
@@ -202,18 +286,42 @@ idle → uploading → processing → done
 - `downloadAll()` → 遍历三个 stem → 每个创建一个隐藏 `<a>` 并 click
 - `downloadSingle(stem)` → 单个 stem 创建下载链接
 
+#### AuthPage.vue —— 登录/注册（v2.1 新增）
+
+[文件](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/src/pages/AuthPage.vue)
+
+**做什么**：单页切换登录/注册模式，调用 useAuthStore 的 API。
+
+**关键函数**：
+- `submit()` → 表单验证 → `auth.register()` 或 `auth.login()` → 成功后 `router.push('/discover')`
+- 通过 `isRegister` 变量切换表单显示（登录 2 个字段 vs 注册 4 个字段）
+- 底部 4 个测试账号按钮 → 一键填入邮箱和密码
+
+**设计要点**：未登录时侧边栏的「登录/注册」按钮跳转到此页面；登录后自动跳转回 `/discover`。
+
+#### AppSidebar 中的用户区（v2.1 修改）
+
+侧边栏 `onMounted` 时调用 `auth.restoreSession()` 自动恢复登录态。根据 `auth.isLoggedIn()` 的结果显示不同 UI：
+- **未登录**：渐变色「登录 / 注册」按钮
+- **已登录**：用户名 + 邮箱 + "X首收藏 · Y个歌单" + 退出按钮
+
 ---
 
 ## 4. 后端架构 —— 从接收请求到返回音轨
 
-### 4.1 两个文件的分工
+### 4.1 五个文件的分工（v2.1 从 2 个文件扩展到 5 个）
 
 | 文件 | 角色 |
 |------|------|
-| [main.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/main.py) | API 服务器：接收请求、路由调度、进度管理、启动推理线程 |
+| [main.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/main.py) | API 服务器：接收请求、路由调度、进度管理、启动推理线程。v2.1 新增：注册 user_router + startup 自动建表 |
 | [separator.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/separator.py) | 工具模块：模型加载、音频切片、4→3轨映射、格式转码 |
+| [database.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/database.py) | ★新增：SQLAlchemy ORM 模型 + MySQL 连接配置 |
+| [auth.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/auth.py) | ★新增：bcrypt 密码哈希 + JWT 签发/验证 + `get_current_user` 依赖注入 |
+| [user_routes.py](file:///c:/Users/NEIL/AppData/Roaming/TRAE%20SOLO%20CN/ModularData/ai-agent/work-mode-projects/6a4da5c25923191041f7bc77/backend/user_routes.py) | ★新增：7 个用户/收藏 API 端点（前缀 `/user`） |
 
-### 4.2 四个 API 端点
+### 4.2 十一个 API 端点（v2.1 从 4 个扩展到 11 个）
+
+**音频分离相关（4 个）**：
 
 | 端点 | 方法 | 用途 | 前端调用时机 |
 |------|------|------|------------|
@@ -221,6 +329,18 @@ idle → uploading → processing → done
 | `/status/{task_id}` | GET | 查询进度/结果 | 每 2 秒轮询一次 |
 | `/download/{stem}/{task_id}?format=` | GET | 下载分离完成的 WAV/MP3 | 用户点下载按钮 |
 | `/health` | GET | 健康检查 + GPU 状态 | 部署运维使用 |
+
+**用户认证相关（7 个，v2.1 新增）**：
+
+| 端点 | 方法 | 认证 | 用途 |
+|------|------|------|------|
+| `/user/register` | POST | 无 | 注册（返回 token + user） |
+| `/user/login` | POST | 无 | 登录（返回 token + user） |
+| `/user/me` | GET | Bearer | 获取当前用户信息 |
+| `/user/favorite/song` | POST | Bearer | 收藏/取消收藏歌曲（toggle） |
+| `/user/favorite/playlist` | POST | Bearer | 收藏/取消收藏歌单（toggle） |
+| `/user/favorites/songs` | GET | Bearer | 获取收藏歌曲 ID 列表 |
+| `/user/favorites/playlists` | GET | Bearer | 获取收藏歌单 ID 列表 |
 
 ### 4.3 为什么不直接返回结果？
 
@@ -384,6 +504,51 @@ HomePage 中 v-if="Object.keys(state.results).length > 0" 条件渲染
 
 ---
 
+## 5.5 用户认证全链路数据流（v2.1 新增）
+
+```
+【第 1 步：进入 /auth】
+用户在侧边栏点击「登录 / 注册」→ router.push('/auth')
+  → AuthPage.vue 渲染
+  → 默认显示登录模式（isRegister=false）
+
+【第 2 步：登录】
+用户输入邮箱 + 密码 → submit()
+  → auth.login(email, password):
+      apiFetch('/user/login', { method:'POST', body:{email, password} })
+        ← 后端 user_routes.py → 查 users 表 → bcrypt 验证 → 签发 JWT
+        ← 返回: { token: "eyJ...", user: {id, username, email, ...} }
+  → setAuth(token, user):
+      state.token = token
+      state.user = user
+      localStorage.setItem('auth_token', token)
+  → loadFavorites():
+      Promise.all([
+        apiFetch('/user/favorites/songs'),   ← GET，带 Bearer
+        apiFetch('/user/favorites/playlists')
+      ])
+      state.favoriteSongIds = ['s001', 's003', ...]
+      state.favoritePlaylistIds = ['p001', 'p003', ...]
+  → router.push('/discover')
+
+【第 3 步：显示用户信息】
+AppSidebar 的 onMounted → restoreSession()
+  → 从 localStorage 取 token → GET /user/me → 验证
+  → 显示"用户名、邮箱、X首收藏 · Y个歌单"
+
+【第 4 步：收藏歌曲】
+用户在 DiscoverPage 点击心形按钮
+  → auth.toggleFavoriteSong('s005')
+      apiFetch('/user/favorite/song', { method:'POST', body:{song_id:'s005'} })
+        ← 后端查 favorite_songs 表
+        ← 已有记录 → DELETE → 返回 {favorited: false}
+        ← 无记录 → INSERT → 返回 {favorited: true}
+  → 前者: state.favoriteSongIds.push('s005')  ← 心形变填充
+  → 后者: state.favoriteSongIds.filter(...)    ← 心形变空心
+```
+
+---
+
 ## 6. 调试技巧
 
 ### 6.1 前端调试
@@ -416,11 +581,14 @@ curl http://localhost:8000/status/你的task_id
 
 | 问题 | 原因 | 解决 |
 |------|------|------|
-| 前端访问 localhost:5173 空白 | 后端没启动导致 /api 请求报错但页面渲染正常 | 检查控制台 Network 面板看 /api/separate 有没有 404/500 |
+| 前端访问 localhost:5173 空白 | 后端没启动导致 /api 请求报错但页面渲染正常 | 检查控制台 Network 面板 |
 | "无法连接后端服务" | 后端没启动 | `python backend/main.py` |
-| 上传后没有波形 | AudioContext 解码失败 | 检查文件格式是否是支持的 6 种 |
-| 分离一直不结束 | 模型推理慢（CPU 模式可能几十秒到几分钟）、文件太大 | 耐心等，progress 在变就没问题 |
-| 分离报错 | 文件损坏、磁盘空间不足、模型下载失败 | 看后端终端输出，检查 `uploads/` 和 `outputs/` 目录 |
+| 上传后没有波形 | AudioContext 解码失败 | 检查文件格式 |
+| 分离一直不结束 | 模型推理慢（CPU 模式几十秒到几分钟） | 耐心等，progress 在变即可 |
+| 分离报错 | 文件损坏/磁盘空间不足 | 看后端终端输出 |
+| 登录/注册报 500 | MySQL 没连上 | 确认数据库已创建，DB_PASSWORD 正确 |
+| 收藏点不动 | 没登录 | 检查侧边栏是否显示用户信息 |
+| "ModuleNotFoundError: No module named 'sqlalchemy'" | 新依赖没装 | `pip install sqlalchemy pymysql python-jose passlib[bcrypt]` |
 
 ---
 
@@ -430,9 +598,13 @@ curl http://localhost:8000/status/你的task_id
 
 ### 7.1 演示脚本
 
-1. **自我介绍 + 一句话项目介绍**："我做的是一个 AI 音频分离平台，前端 Vue 3，后端 Python FastAPI，AI 模型用 Meta 的 Demucs。"
+1. **自我介绍 + 一句话项目介绍**："我做的是一个 AI 音频分离平台。前端 Vue 3，后端 Python FastAPI + MySQL 数据库，AI 模型用 Meta 的 Demucs。支持用户注册登录和收藏功能。"
 
-2. **展示运行**：找一段 1-2 分钟的 MP3 测试文件，拖进去 → 不要选区（全文分离）→ 点"开始分离"→ 展示进度条 → 展示三条音轨 → 播放对比 → 下载
+2. **展示运行**：
+   - 展示未登录 → 侧边栏「登录/注册」按钮 → 点进去 → 用测试账号登录
+   - 登录后展示侧边栏用户信息 + 收藏统计
+   - 回到 Discover → 展示心形收藏按钮 → 点几个收藏 → 展示「我的音乐中心」区块
+   - 去 Workbench → 拖 MP3 进去 → 点"开始分离"→ 展示进度条 → 展示三条音轨 → 播放对比 → 下载
 
 3. **技术亮点**（可以提到但不需要演示）：
    - 波形图用 Canvas 2D 手写绘制，支持缩放和选区
@@ -449,6 +621,9 @@ curl http://localhost:8000/status/你的task_id
 | "模型是哪里来的？" | Meta 开源的 Demucs，用 Python 的 demucs 库加载预训练权重 |
 | "分离一次要多久？" | GPU 约 10 倍实时（1 分钟音频 6 秒分离完），CPU 约 0.5 倍实时 |
 | "如果让你加一个 XX 功能，怎么做？" | 见下方速查表 |
+| "收藏功能怎么实现的？" | 后端 toggle 模式（INSERT/DELETE），前端同步本地数组，localStorage 存储 JWT，每次请求自动带 Bearer Token |
+| "密码安全吗？" | bcrypt 哈希存储，不存明文；JWT HS256 签名，24 小时过期 |
+| "数据库表关系是什么？" | users 一对多 favorite_songs/favorite_playlists，通过 user_id 关联 |
 
 ### 7.3 常见修改需求速查
 
@@ -457,6 +632,9 @@ curl http://localhost:8000/status/你的task_id
 | "把配乐再拆成贝斯和伴奏" | 改 `separator.py` 的 `merge_stems()`：不要 `bass+other`，分别保存 bass.wav 和 other.wav；前端 `useAudioStore.ts` 加 `StemType`；`STEM_COLORS` 加颜色；`SeparationPanel.vue` 加按钮；`HomePage.vue` 加 TrackCard |
 | "加一个上传进度条" | `UploadZone.vue` 中用 `XMLHttpRequest` 代替 fetch，监听 `progress` 事件 |
 | "支持导出 FLAC 格式" | `separator.py` 加 `convert_to_flac()` → `main.py` 的 download 端点判断 format=flac → 前端 ExportPanel 加 FLAC 按钮 |
-| "改界面颜色" | `style.css` 改 body background → `STEM_COLORS` 改音轨色 → `.range-slider` 改品牌色 `#e04090` |
-| "加用户登录" | 这个是较复杂的改动，需要：后端加用户表 + JWT → 前端加登录页 + 路由守卫 + localStorage token |
+| "改界面颜色" | `style.css` 改 body background → `STEM_COLORS` 改音轨色 → `.range-slider` 改品牌粉 |
+| "加用户登录" | ✅ 已实现。参见 `useAuthStore.ts` + `backend/auth.py` + `backend/user_routes.py` |
+| "加新收藏类型（如专辑收藏）" | 参考 `favorite_songs` 模式：backend 建 FavoriteAlbum 表 + user_routes 加 API + 前端 useAuthStore 加 toggle/get 方法 |
+| "改 JWT 过期时间" | `backend/auth.py` 改 `ACCESS_TOKEN_EXPIRE_HOURS` |
+| "改密码强度要求" | `backend/user_routes.py` 的注册校验中改 `len(req.password) < 6` |
 | "显示歌词" | 已有 `useMusicApi.ts` 的 `parseLyricText()` 和 `fetchLyric()`，只需在底部播放器组件中渲染 |

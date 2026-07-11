@@ -24,8 +24,12 @@ from separator import (
     OUTPUT_DIR,
     MODEL_NAME,
 )
+from database import engine, Base
+from user_routes import router as user_router
 
-app = FastAPI(title="AudioSift API", version="2.0.0")
+app = FastAPI(title="AudioSift API", version="2.1.0")
+
+app.include_router(user_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -217,6 +221,8 @@ async def health():
 
 @app.on_event("startup")
 async def startup():
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created/verified.")
     print(f"Loading model: {MODEL_NAME} ...")
     model = await get_model()
     print(f"Model loaded. Sources: {model.sources}")
