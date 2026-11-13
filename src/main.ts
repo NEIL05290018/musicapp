@@ -3,11 +3,11 @@ import './style.css'
 import App from './App.vue'
 import router from './router'
 
-// 创建Vue应用实例
+// Create the Vue app instance
 const app = createApp(App)
 
-// 使用路由
+// Register the router
 app.use(router)
 
-// 挂载应用
+// Mount the app
 app.mount('#app')

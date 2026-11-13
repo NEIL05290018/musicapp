@@ -3,6 +3,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { Play, Pause, Volume2, Download } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { STEM_COLORS, getDownloadUrl } from '@/composables/useAudioUtils'
+import { t } from '@/i18n'
 import type { StemType } from '@/composables/useAudioStore'
 
 const props = defineProps<{
@@ -19,11 +20,7 @@ const audioRef = ref<HTMLAudioElement>()
 
 const audioSrc = computed(() => getDownloadUrl(props.stemType, state.taskId || '', 'wav'))
 
-const stemLabel: Record<StemType, string> = {
-  vocals: '人声',
-  music: '配乐',
-  sfx: '音效',
-}
+const stemName = computed(() => t(`stem.${props.stemType}`))
 
 function togglePlay() {
   if (!audioRef.value) return
@@ -56,7 +53,7 @@ function handleDownload() {
   const url = getDownloadUrl(props.stemType, state.taskId || '', state.exportFormat)
   const a = document.createElement('a')
   a.href = url
-  a.download = `AudioSift_${stemLabel[props.stemType]}.${state.exportFormat}`
+  a.download = `AudioSift_${stemName.value}.${state.exportFormat}`
   a.click()
 }
 
@@ -70,15 +67,15 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="flex flex-col gap-3 rounded-xl p-4 transition-all duration-300 hover:scale-[1.02]"
+    class="flex flex-col gap-3 rounded-[28px] border p-4 transition-all duration-300 hover:-translate-y-1"
     :style="{ backgroundColor: color.bg, border: `1px solid ${color.border}20` }"
   >
     <audio ref="audioRef" :src="audioSrc" @ended="onEnded" />
 
     <div class="flex items-center gap-2">
       <div class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: color.border }" />
-      <span class="text-sm font-medium text-white">{{ stemLabel[stemType] }}</span>
-      <span class="ml-auto text-xs text-white/50 tabular-nums">{{ duration.toFixed(1) }}s</span>
+      <span class="text-sm font-medium text-white">{{ stemName }}</span>
+      <span class="ml-auto text-xs text-ink-secondary tabular-nums">{{ duration.toFixed(1) }}s</span>
     </div>
 
     <div class="h-8 rounded-lg bg-white/[0.03]">
@@ -90,8 +87,10 @@ onUnmounted(() => {
 
     <div class="flex items-center gap-2">
       <button
-        class="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 hover:scale-110"
+        class="flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 hover:scale-110"
         :style="{ backgroundColor: isPlaying ? '#e04090' : `${color.border}20`, color: isPlaying ? 'white' : color.border }"
+        :aria-label="isPlaying ? t('player.pauseStem', { stem: stemName }) : t('player.playStem', { stem: stemName })"
+        :title="isPlaying ? t('player.pause') : t('player.play')"
         @click="togglePlay"
       >
         <Pause v-if="isPlaying" class="h-4 w-4" />
@@ -99,7 +98,7 @@ onUnmounted(() => {
       </button>
 
       <div class="flex flex-1 items-center gap-2">
-        <Volume2 class="h-3.5 w-3.5 text-white/30" />
+        <Volume2 class="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />
         <input
           type="range"
           min="0"
@@ -107,12 +106,15 @@ onUnmounted(() => {
           step="0.01"
           :value="state.volumes[stemType]"
           class="range-slider flex-1"
+          :aria-label="t('player.volume', { stem: stemName })"
           @input="onVolumeChange"
         />
       </div>
 
       <button
-        class="flex h-8 w-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/[0.08] hover:text-white/60"
+        class="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-white/[0.08] hover:text-white"
+        :aria-label="t('player.downloadStem', { stem: stemName })"
+        :title="t('export.download')"
         @click="handleDownload"
       >
         <Download class="h-3.5 w-3.5" />

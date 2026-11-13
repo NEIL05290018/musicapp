@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { MicVocal, Music2, Waves } from 'lucide-vue-next'
+import { t } from '@/i18n'
 
 const mouseX = ref(0)
 const mouseY = ref(0)
 const halfW = ref(0)
 const halfH = ref(0)
 const scrollY = ref(0)
+const reduceMotion = ref(false)
 
 const allImages = Array.from({ length: 30 }, (_, i) => i + 1)
 
@@ -32,6 +35,23 @@ function cycleImages() {
 
 function onScroll() {
   scrollY.value = window.scrollY
+}
+
+function onMouseMove(e: MouseEvent) {
+  if (reduceMotion.value) return
+  mouseTarget.x = e.clientX
+  mouseTarget.y = e.clientY
+  mouseX.value = e.clientX
+  mouseY.value = e.clientY
+}
+
+function onResize() {
+  halfW.value = window.innerWidth / 2
+  halfH.value = window.innerHeight / 2
+  initParticles()
+  drawParticles()
+  if (resizeTimer) clearTimeout(resizeTimer)
+  resizeTimer = setTimeout(redrawTopCanvas, 100)
 }
 
 let animFrame = 0
@@ -70,10 +90,10 @@ function redrawTopCanvas() {
 
   for (const t of trail) {
     const gradient = ctx.createRadialGradient(t.x, t.y, 280, t.x, t.y, 420)
-    gradient.addColorStop(0, 'rgba(0,0,0,1)')
-    gradient.addColorStop(0.5, 'rgba(0,0,0,0.7)')
-    gradient.addColorStop(0.75, 'rgba(0,0,0,0.3)')
-    gradient.addColorStop(1, 'rgba(0,0,0,0)')
+    gradient.addColorStop(0, 'rgba(8,8,12,1)')
+    gradient.addColorStop(0.5, 'rgba(8,8,12,0.7)')
+    gradient.addColorStop(0.75, 'rgba(8,8,12,0.3)')
+    gradient.addColorStop(1, 'rgba(8,8,12,0)')
     ctx.beginPath()
     ctx.arc(t.x, t.y, 420, 0, Math.PI * 2)
     ctx.fillStyle = gradient
@@ -97,39 +117,34 @@ function animateLoop() {
 }
 
 onMounted(() => {
+  reduceMotion.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   halfW.value = window.innerWidth / 2
   halfH.value = window.innerHeight / 2
   initParticles()
   drawParticles()
 
-  cycleTimer = setInterval(cycleImages, 4000)
-  cycleImages()
+  if (!reduceMotion.value) {
+    cycleTimer = setInterval(cycleImages, 4000)
+    cycleImages()
+    animateLoop()
+  }
 
-  window.addEventListener('mousemove', (e: MouseEvent) => {
-    mouseTarget.x = e.clientX
-    mouseTarget.y = e.clientY
-    mouseX.value = e.clientX
-    mouseY.value = e.clientY
-  })
-  window.addEventListener('resize', () => {
-    halfW.value = window.innerWidth / 2
-    halfH.value = window.innerHeight / 2
-    initParticles()
-    if (resizeTimer) clearTimeout(resizeTimer)
-    resizeTimer = setTimeout(redrawTopCanvas, 100)
-  })
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('resize', onResize)
   window.addEventListener('scroll', onScroll, { passive: true })
 
   nextTick(() => {
     if (topImgRef.value?.complete) redrawTopCanvas()
   })
-  animateLoop()
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(animFrame)
   cancelAnimationFrame(pFrame)
   if (cycleTimer) clearInterval(cycleTimer)
+  if (resizeTimer) clearTimeout(resizeTimer)
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('resize', onResize)
   window.removeEventListener('scroll', onScroll)
 })
 
@@ -173,12 +188,12 @@ function drawParticles() {
     ctx.fillStyle = `rgba(255,255,255,${p.opacity})`
     ctx.fill()
   }
-  pFrame = requestAnimationFrame(drawParticles)
+  if (!reduceMotion.value) pFrame = requestAnimationFrame(drawParticles)
 }
 </script>
 
 <template>
-  <div class="relative min-h-screen overflow-hidden bg-black">
+  <div class="relative min-h-screen overflow-hidden bg-surface-base">
     <canvas ref="canvasRef" class="pointer-events-none fixed inset-0 z-10" />
 
     <div class="pointer-events-none fixed inset-0 z-0">
@@ -188,7 +203,7 @@ function drawParticles() {
           backgroundImage: `url(${getCover(allImages[bottomIndex] || 1)})`,
           opacity: bottomFade * 0.6,
           transform: `translateX(${(mouseX - halfW) * 0.02}px) translateY(${(mouseY - halfH) * 0.02}px)`,
-          filter: 'blur(2px) brightness(0.7) saturate(1.2)',
+          filter: 'blur(2px) brightness(0.45) saturate(1.1)',
           transition: 'opacity 0.8s ease, background-image 0.8s ease',
         }"
       />
@@ -203,65 +218,67 @@ function drawParticles() {
       @load="redrawTopCanvas"
     />
 
-    <div class="relative z-30 flex min-h-screen flex-col items-center justify-center px-8 pb-20 pt-8">
-      <div class="mb-16 flex items-end gap-3 self-start">
-        <div class="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#5b9cff] to-[#e04090]">
+    <div class="relative z-30 flex min-h-screen flex-col items-center justify-center px-4 pb-20 pt-8 sm:px-8">
+    <div class="mb-12 flex items-end gap-3 self-start sm:mb-16">
+      <div class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-pink">
           <span class="text-xs text-white font-bold">A</span>
         </div>
-        <h1 class="text-2xl font-bold text-white">About</h1>
+      <h1 class="text-2xl font-bold text-white">{{ t('about.title') }}</h1>
       </div>
 
       <div class="flex flex-1 flex-col items-center justify-center text-center">
         <div class="select-none"
           :style="{
-            transform: `translateX(${(mouseX - halfW) * -0.03}px) translateY(${(mouseY - halfH) * -0.05}px)`,
+            transform: reduceMotion ? undefined : `translateX(${(mouseX - halfW) * -0.03}px) translateY(${(mouseY - halfH) * -0.05}px)`,
           }"
         >
-          <p class="mb-4 text-sm font-medium uppercase tracking-[0.4em] text-white/20">Move your mouse to reveal</p>
-          <h2 class="text-7xl font-bold tracking-tighter text-white md:text-9xl">
-            Audio<span class="text-[#e04090]">Sift</span>
+          <p v-if="!reduceMotion" class="mb-4 text-sm font-medium uppercase tracking-[0.2em] text-white/65 sm:tracking-[0.4em]">
+            {{ t('about.prompt') }}
+          </p>
+          <h2 class="text-6xl font-bold tracking-tighter text-white sm:text-7xl md:text-9xl">
+            Audio<span class="text-brand-pink">Sift</span>
           </h2>
-          <p class="mt-8 text-xl text-white/25 md:text-2xl">AI-Powered Audio Separation Engine</p>
-          <div class="mt-12 flex items-center justify-center gap-6">
-            <span class="rounded-full border border-white/[0.06] bg-white/[0.04] px-5 py-2.5 text-sm text-white/35 backdrop-blur-xl">Demucs</span>
-            <span class="rounded-full border border-white/[0.06] bg-white/[0.04] px-5 py-2.5 text-sm text-white/35 backdrop-blur-xl">FastAPI</span>
-            <span class="rounded-full border border-white/[0.06] bg-white/[0.04] px-5 py-2.5 text-sm text-white/35 backdrop-blur-xl">Vue 3</span>
-            <span class="rounded-full border border-white/[0.06] bg-white/[0.04] px-5 py-2.5 text-sm text-white/35 backdrop-blur-xl">Tailwind</span>
+          <p class="mt-8 text-lg text-white/75 md:text-2xl">{{ t('about.tagline') }}</p>
+          <div class="mt-12 flex flex-wrap items-center justify-center gap-3 sm:gap-6">
+            <span class="rounded-full border border-white/[0.10] bg-surface-card/90 px-5 py-2.5 text-sm text-white/70">Demucs</span>
+            <span class="rounded-full border border-white/[0.10] bg-surface-card/90 px-5 py-2.5 text-sm text-white/70">FastAPI</span>
+            <span class="rounded-full border border-white/[0.10] bg-surface-card/90 px-5 py-2.5 text-sm text-white/70">Vue 3</span>
+            <span class="rounded-full border border-white/[0.10] bg-surface-card/90 px-5 py-2.5 text-sm text-white/70">Tailwind</span>
           </div>
         </div>
 
-        <div class="mt-20 grid w-full max-w-4xl gap-6 md:grid-cols-3">
-          <div class="rounded-2xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-6"
-            :style="{ transform: `translateY(${-scrollY * 0.08}px)` }"
+        <div class="mt-20 grid w-full max-w-4xl gap-4 md:grid-cols-3 md:gap-6">
+          <div class="rounded-[28px] border border-white/[0.08] bg-surface-card/90 p-6"
+            :style="{ transform: reduceMotion ? undefined : `translateY(${-scrollY * 0.08}px)` }"
           >
-            <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#4f8fff]/30 to-[#4f8fff]/10">
-              <span class="text-lg">🎤</span>
+            <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand-blue/15 text-brand-blue">
+              <MicVocal class="h-5 w-5" aria-hidden="true" />
             </div>
-            <h3 class="mb-2 text-sm font-semibold text-white/80">Vocal Extraction</h3>
-            <p class="text-xs leading-relaxed text-white/35">Precision vocal isolation from any audio source.</p>
+            <h3 class="mb-2 text-sm font-semibold text-white">{{ t('about.vocalTitle') }}</h3>
+            <p class="text-sm leading-relaxed text-white/70">{{ t('about.vocalDescription') }}</p>
           </div>
-          <div class="rounded-2xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-6"
-            :style="{ transform: `translateY(${-scrollY * 0.05}px)` }"
+          <div class="rounded-[28px] border border-white/[0.08] bg-surface-card/90 p-6"
+            :style="{ transform: reduceMotion ? undefined : `translateY(${-scrollY * 0.05}px)` }"
           >
-            <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#b464ff]/30 to-[#b464ff]/10">
-              <span class="text-lg">🎸</span>
+            <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand-purple/15 text-brand-purple">
+              <Music2 class="h-5 w-5" aria-hidden="true" />
             </div>
-            <h3 class="mb-2 text-sm font-semibold text-white/80">Instrumental Split</h3>
-            <p class="text-xs leading-relaxed text-white/35">Extract pure backing tracks with ease.</p>
+            <h3 class="mb-2 text-sm font-semibold text-white">{{ t('about.musicTitle') }}</h3>
+            <p class="text-sm leading-relaxed text-white/70">{{ t('about.musicDescription') }}</p>
           </div>
-          <div class="rounded-2xl border border-white/[0.06] bg-black/40 backdrop-blur-xl p-6"
-            :style="{ transform: `translateY(${-scrollY * 0.1}px)` }"
+          <div class="rounded-[28px] border border-white/[0.08] bg-surface-card/90 p-6"
+            :style="{ transform: reduceMotion ? undefined : `translateY(${-scrollY * 0.1}px)` }"
           >
-            <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#ff8c3c]/30 to-[#ff8c3c]/10">
-              <span class="text-lg">🥁</span>
+            <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-brand-orange/15 text-brand-orange">
+              <Waves class="h-5 w-5" aria-hidden="true" />
             </div>
-            <h3 class="mb-2 text-sm font-semibold text-white/80">Drum Separation</h3>
-            <p class="text-xs leading-relaxed text-white/35">Isolate beats and percussion for remixing.</p>
+            <h3 class="mb-2 text-sm font-semibold text-white">{{ t('about.sfxTitle') }}</h3>
+            <p class="text-sm leading-relaxed text-white/70">{{ t('about.sfxDescription') }}</p>
           </div>
         </div>
 
-        <p class="mt-24 text-[10px] text-white/10 tracking-[0.3em] uppercase">
-          Move your mouse to reveal · Powered by Demucs · Deployed on Alibaba Cloud
+        <p class="mt-24 text-xs text-white/60 tracking-wide">
+          {{ reduceMotion ? t('about.reveal') : t('about.footer') }}
         </p>
       </div>
     </div>
