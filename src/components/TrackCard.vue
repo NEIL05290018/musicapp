@@ -3,6 +3,7 @@ import { ref, computed, onUnmounted } from 'vue'
 import { Play, Pause, Volume2, Download } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { STEM_COLORS, getDownloadUrl } from '@/composables/useAudioUtils'
+import { t } from '@/i18n'
 import type { StemType } from '@/composables/useAudioStore'
 
 const props = defineProps<{
@@ -19,11 +20,7 @@ const audioRef = ref<HTMLAudioElement>()
 
 const audioSrc = computed(() => getDownloadUrl(props.stemType, state.taskId || '', 'wav'))
 
-const stemLabel: Record<StemType, string> = {
-  vocals: '人声',
-  music: '配乐',
-  sfx: '音效',
-}
+const stemName = computed(() => t(`stem.${props.stemType}`))
 
 function togglePlay() {
   if (!audioRef.value) return
@@ -56,7 +53,7 @@ function handleDownload() {
   const url = getDownloadUrl(props.stemType, state.taskId || '', state.exportFormat)
   const a = document.createElement('a')
   a.href = url
-  a.download = `AudioSift_${stemLabel[props.stemType]}.${state.exportFormat}`
+  a.download = `AudioSift_${stemName.value}.${state.exportFormat}`
   a.click()
 }
 
@@ -77,7 +74,7 @@ onUnmounted(() => {
 
     <div class="flex items-center gap-2">
       <div class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: color.border }" />
-      <span class="text-sm font-medium text-white">{{ stemLabel[stemType] }}</span>
+      <span class="text-sm font-medium text-white">{{ stemName }}</span>
       <span class="ml-auto text-xs text-white/50 tabular-nums">{{ duration.toFixed(1) }}s</span>
     </div>
 

@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Music2, Mail, Lock, User, Loader2, ArrowLeft } from 'lucide-vue-next'
 import { useAuthStore } from '@/composables/useAuthStore'
+import { t } from '@/i18n'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -19,17 +20,17 @@ async function submit() {
   errorMsg.value = ''
 
   if (!email.value.trim() || !password.value.trim()) {
-    errorMsg.value = '请填写邮箱和密码'
+    errorMsg.value = t('auth.fillEmailPassword')
     return
   }
 
   if (isRegister.value) {
     if (!username.value.trim()) {
-      errorMsg.value = '请填写用户名'
+      errorMsg.value = t('auth.fillUsername')
       return
     }
     if (password.value !== confirmPassword.value) {
-      errorMsg.value = '两次密码不一致'
+      errorMsg.value = t('auth.passwordMismatch')
       return
     }
   }
@@ -43,7 +44,7 @@ async function submit() {
     }
     router.push('/discover')
   } catch (e: any) {
-    errorMsg.value = e.message || '操作失败，请重试'
+    errorMsg.value = e.message || t('auth.failed')
   } finally {
     isLoading.value = false
   }
@@ -63,7 +64,7 @@ function goBack() {
         @click="goBack"
       >
         <ArrowLeft class="h-4 w-4" />
-        <span>返回 Discover</span>
+        <span>{{ t('auth.back') }}</span>
       </button>
 
       <div class="rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-xl p-8">
@@ -71,9 +72,9 @@ function goBack() {
           <div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[#e04090] to-[#5b9cff] shadow-lg shadow-[#e04090]/20">
             <Music2 class="h-7 w-7 text-white" />
           </div>
-          <h1 class="text-xl font-bold text-white">{{ isRegister ? '创建账号' : '欢迎回来' }}</h1>
+          <h1 class="text-xl font-bold text-white">{{ isRegister ? t('auth.createAccount') : t('auth.welcomeBack') }}</h1>
           <p class="mt-1 text-sm text-white/40">
-            {{ isRegister ? '注册一个 AudioSift 账号' : '登录你的 AudioSift 账号' }}
+            {{ isRegister ? t('auth.registerSub') : t('auth.loginSub') }}
           </p>
         </div>
 
@@ -87,7 +88,7 @@ function goBack() {
             <input
               v-model="username"
               type="text"
-              placeholder="用户名"
+              :placeholder="t('auth.username')"
               class="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white/80 placeholder:text-white/25 outline-none backdrop-blur-sm transition-all focus:border-white/[0.15] focus:bg-white/[0.06]"
             />
           </div>
@@ -97,7 +98,7 @@ function goBack() {
             <input
               v-model="email"
               type="email"
-              placeholder="邮箱地址"
+              :placeholder="t('auth.email')"
               class="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white/80 placeholder:text-white/25 outline-none backdrop-blur-sm transition-all focus:border-white/[0.15] focus:bg-white/[0.06]"
             />
           </div>
@@ -107,7 +108,7 @@ function goBack() {
             <input
               v-model="password"
               type="password"
-              placeholder="密码"
+              :placeholder="t('auth.password')"
               class="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white/80 placeholder:text-white/25 outline-none backdrop-blur-sm transition-all focus:border-white/[0.15] focus:bg-white/[0.06]"
             />
           </div>
@@ -117,7 +118,7 @@ function goBack() {
             <input
               v-model="confirmPassword"
               type="password"
-              placeholder="确认密码"
+              :placeholder="t('auth.confirmPassword')"
               class="w-full rounded-xl border border-white/[0.08] bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-white/80 placeholder:text-white/25 outline-none backdrop-blur-sm transition-all focus:border-white/[0.15] focus:bg-white/[0.06]"
             />
           </div>
@@ -128,24 +129,24 @@ function goBack() {
             class="w-full rounded-xl bg-gradient-to-r from-[#e04090] to-[#5b9cff] py-3 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-[#e04090]/20 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
           >
             <Loader2 v-if="isLoading" class="mx-auto h-4 w-4 animate-spin" />
-            <span v-else>{{ isRegister ? '注册' : '登录' }}</span>
+            <span v-else>{{ isRegister ? t('auth.register') : t('auth.login') }}</span>
           </button>
         </form>
 
         <div class="mt-6 text-center">
           <span class="text-sm text-white/35">
-            {{ isRegister ? '已有账号？' : '没有账号？' }}
+            {{ isRegister ? t('auth.haveAccount') : t('auth.noAccount') }}
           </span>
           <button
             class="ml-1 text-sm font-medium text-[#5b9cff] hover:text-[#7bc8ff] transition-colors"
             @click="isRegister = !isRegister; errorMsg = ''"
           >
-            {{ isRegister ? '立即登录' : '立即注册' }}
+            {{ isRegister ? t('auth.loginNow') : t('auth.registerNow') }}
           </button>
         </div>
 
         <div class="mt-6 border-t border-white/[0.06] pt-6">
-          <p class="text-center text-xs text-white/25 mb-3">测试账号</p>
+          <p class="text-center text-xs text-white/25 mb-3">{{ t('auth.testAccounts') }}</p>
           <div class="grid grid-cols-2 gap-2">
             <button
               class="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"

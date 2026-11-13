@@ -3,6 +3,7 @@ import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ZoomIn, ZoomOut, Trash2 } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { extractPeaks, formatTime, generateUUID } from '@/composables/useAudioUtils'
+import { t } from '@/i18n'
 
 const { state, addTimeSelection, removeTimeSelection } = useAudioStore()
 
@@ -185,7 +186,7 @@ onUnmounted(() => {
   <div v-if="state.audioBuffer" class="glass-card flex flex-col gap-3 p-4">
     <div class="flex items-center justify-between">
       <div class="flex items-center gap-2">
-        <span class="text-xs font-semibold text-white/60">波形图</span>
+        <span class="text-xs font-semibold text-white/60">{{ t('wave.title') }}</span>
         <span class="rounded bg-white/[0.06] px-2 py-0.5 text-xs text-white/50">
           {{ formatTime(state.audioDuration) }}
         </span>
@@ -240,7 +241,7 @@ onUnmounted(() => {
     </div>
 
     <p class="text-xs text-white/40">
-      在波形图上拖拽选取需要分离的时间段 · 滚轮缩放 · 可添加多个选区
+      {{ t('wave.hint') }}
     </p>
   </div>
 </template>

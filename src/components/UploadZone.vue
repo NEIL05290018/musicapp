@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { Upload, FileAudio, AlertCircle } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { decodeAudioFile } from '@/composables/useAudioUtils'
+import { t } from '@/i18n'
 
 const { state, setAudioFile, setAudioBuffer, setAudioInfo } = useAudioStore()
 
@@ -15,10 +16,10 @@ function validateFile(file: File): string | null {
   const validExtensions = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac']
   const ext = '.' + file.name.split('.').pop()?.toLowerCase()
   if (!validExtensions.includes(ext)) {
-    return '不支持的音频格式，请上传 MP3 / WAV / FLAC / OGG / M4A 文件'
+    return t('upload.invalidFormat')
   }
   if (file.size > 100 * 1024 * 1024) {
-    return '文件大小超过 100MB 限制'
+    return t('upload.tooLarge')
   }
   return null
 }
@@ -37,7 +38,7 @@ async function processFile(file: File) {
     setAudioBuffer(buffer)
     setAudioInfo(buffer.duration, buffer.sampleRate)
   } catch (err) {
-    error.value = err instanceof Error ? err.message : '音频处理失败'
+    error.value = err instanceof Error ? err.message : t('upload.failed')
   } finally {
     isLoading.value = false
   }
@@ -89,7 +90,7 @@ function handleReset() {
         <p class="truncate text-sm font-medium text-white/90">{{ state.audioFile.name }}</p>
         <p class="text-xs text-white/55">
           {{ (state.audioFile.size / 1024 / 1024).toFixed(1) }} MB ·
-          {{ state.audioBuffer.numberOfChannels }}声道 ·
+          {{ t('upload.channels', { n: state.audioBuffer.numberOfChannels }) }} ·
           {{ (state.audioBuffer.sampleRate / 1000).toFixed(1) }}kHz
         </p>
       </div>
@@ -97,7 +98,7 @@ function handleReset() {
         class="rounded-lg px-3 py-1.5 text-xs text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
         @click="handleReset"
       >
-        更换文件
+        {{ t('upload.replace') }}
       </button>
     </div>
 
@@ -122,7 +123,7 @@ function handleReset() {
 
       <div v-if="isLoading" class="flex flex-col items-center gap-3">
         <div class="h-10 w-10 animate-spin rounded-full border-2 border-[#4f8fff]/30 border-t-[#4f8fff]" />
-        <span class="text-sm text-white/65">正在解码音频...</span>
+        <span class="text-sm text-white/65">{{ t('upload.decoding') }}</span>
       </div>
 
       <template v-else>
@@ -137,10 +138,10 @@ function handleReset() {
         </div>
         <div class="text-center">
           <p class="text-sm font-medium text-white/70">
-            拖拽音频文件到此处，或<span class="text-[#4f8fff]">点击上传</span>
+            {{ t('upload.dropHint') }}<span class="text-[#4f8fff]">{{ t('upload.clickHere') }}</span>
           </p>
           <p class="mt-1 text-xs text-white/45">
-            支持 MP3 / WAV / FLAC / OGG / M4A · 最大 100MB
+            {{ t('upload.formats') }}
           </p>
         </div>
       </template>

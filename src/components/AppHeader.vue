@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { Music, Sparkles, Waves, MicVocal } from 'lucide-vue-next'
+import { t } from '@/i18n'
 
 const scrolled = ref(false)
 
@@ -25,7 +26,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
         <span class="text-lg font-semibold tracking-tight text-white">AudioSift</span>
       </div>
       <div class="hidden items-center gap-4 sm:flex">
-        <span class="text-xs text-white/25">浏览器端 · AI 音频分离 · 阿里云部署</span>
+        <span class="text-xs text-white/25">{{ t('header.tagline') }}</span>
       </div>
     </div>
   </header>

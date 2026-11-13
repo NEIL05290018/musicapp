@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { t } from '@/i18n'
 
 const METING_BASE = 'https://api.injahow.cn/meting/'
 
@@ -41,21 +42,21 @@ function resolveLyricUrl(lyricId: string): string {
 }
 
 export async function searchSongs(keyword: string, limit = 20): Promise<MusicApiSong[]> {
-  const keywords = ['周杰伦', '林俊杰', '邓紫棋', '陈奕迅', 'Taylor Swift', 'Ed Sheeran', 'BTS', 'chill', 'jazz', 'electronic', 'pop hits', '华语流行']
+  const keywords = ['Taylor Swift', 'Ed Sheeran', 'BTS', 'Coldplay', 'Adele', 'Imagine Dragons', 'chill', 'jazz', 'electronic', 'pop hits', 'classical', 'rock classics']
   const kw = keyword || keywords[Math.floor(Math.random() * keywords.length)]
 
   try {
     const url = `${METING_BASE}?server=netease&type=search&id=${encodeURIComponent(kw)}`
     const res = await fetch(url)
-    if (!res.ok) throw new Error('API 请求失败')
+    if (!res.ok) throw new Error('API request failed')
     const data: MetingSong[] = await res.json()
-    if (!Array.isArray(data) || data.length === 0) throw new Error('无搜索结果')
+    if (!Array.isArray(data) || data.length === 0) throw new Error('No results found')
 
     const songs: MusicApiSong[] = data.slice(0, limit).map((item) => ({
       id: String(item.id),
-      title: item.name || '未知歌曲',
-      artist: item.artist || '未知歌手',
-      album: item.album || '未知专辑',
+      title: item.name || t('api.unknownSong'),
+      artist: item.artist || t('api.unknownArtist'),
+      album: item.album || t('api.unknownAlbum'),
       coverUrl: resolveCoverUrl(item.pic_id),
       audioUrl: resolveAudioUrl(item.url_id),
       lyricUrl: resolveLyricUrl(item.lyric_id),
@@ -94,7 +95,7 @@ export async function resolvePlayableUrl(audioUrl: string): Promise<string> {
   }
   try {
     const res = await fetch(audioUrl)
-    if (!res.ok) throw new Error('获取音频失败')
+    if (!res.ok) throw new Error('Failed to fetch audio')
     const data = await res.json()
     const playUrl = data.url || data.data?.[0]?.url || ''
     if (playUrl) {

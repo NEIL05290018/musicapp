@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { Play, Square, Sparkles, Loader2 } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { STEM_COLORS, uploadAndSeparate, pollStatus } from '@/composables/useAudioUtils'
+import { t } from '@/i18n'
 import type { StemType } from '@/composables/useAudioStore'
 
 const { state, toggleStem, setSeparationStatus, setSeparationProgress, setSeparationError, setTaskId, setResults } = useAudioStore()
 
-const STEMS: { key: StemType; label: string }[] = [
-  { key: 'vocals', label: '人声' },
-  { key: 'music', label: '配乐' },
-  { key: 'sfx', label: '音效' },
-]
+const STEMS = computed<{ key: StemType; label: string }[]>(() => [
+  { key: 'vocals', label: t('stem.vocals') },
+  { key: 'music', label: t('stem.music') },
+  { key: 'sfx', label: t('stem.sfx') },
+])
 
 const canSeparate = () => state.audioBuffer && state.activeStems.length > 0
 const isRunning = () => state.separationStatus === 'processing' || state.separationStatus === 'uploading'
@@ -30,14 +31,14 @@ function startPolling(taskId: string) {
         setSeparationProgress(100)
         clearPolling()
       } else if (res.status === 'error') {
-        setSeparationError(res.error || '分离失败')
+        setSeparationError(res.error || t('sep.failed'))
         setSeparationStatus('error')
         clearPolling()
       } else if (res.status === 'processing') {
         setSeparationStatus('processing')
       }
     } catch (err) {
-      setSeparationError(err instanceof Error ? err.message : '轮询失败')
+      setSeparationError(err instanceof Error ? err.message : t('sep.pollFailed'))
       setSeparationStatus('error')
       clearPolling()
     }
@@ -68,7 +69,7 @@ async function handleSeparate() {
     setSeparationProgress(10)
     startPolling(res.task_id)
   } catch (err) {
-    setSeparationError(err instanceof Error ? err.message : '请求发送失败')
+    setSeparationError(err instanceof Error ? err.message : t('sep.requestFailed'))
     setSeparationStatus('error')
   }
 }
@@ -84,7 +85,7 @@ function handleStop() {
   <div class="glass-card flex flex-col gap-4 p-4">
     <div class="flex items-center gap-2">
       <Sparkles class="h-4 w-4 text-[#e04090]" />
-      <span class="text-xs font-semibold text-white/60">AI 分离引擎</span>
+      <span class="text-xs font-semibold text-white/60">{{ t('sep.title') }}</span>
       <span class="ml-auto rounded-full bg-[#e04090]/15 px-2 py-0.5 text-xs font-medium text-[#e04090]">Demucs v4</span>
     </div>
 
@@ -117,9 +118,9 @@ function handleStop() {
       >
         <Loader2 v-if="isRunning()" class="h-4 w-4 animate-spin" />
         <Play v-else class="h-4 w-4" />
-        <template v-if="state.separationStatus === 'uploading'">上传音频中...</template>
-        <template v-else-if="state.separationStatus === 'processing'">分离中 {{ Math.round(state.separationProgress) }}%</template>
-        <template v-else>开始 AI 分离</template>
+        <template v-if="state.separationStatus === 'uploading'">{{ t('sep.uploading') }}</template>
+        <template v-else-if="state.separationStatus === 'processing'">{{ t('sep.processing', { p: Math.round(state.separationProgress) }) }}</template>
+        <template v-else>{{ t('sep.start') }}</template>
       </button>
 
       <button
@@ -142,7 +143,7 @@ function handleStop() {
         />
       </div>
       <div class="flex justify-between text-xs text-white/50">
-        <span>处理进度</span>
+        <span>{{ t('sep.progress') }}</span>
         <span>{{ Math.round(state.separationProgress) }}%</span>
       </div>
     </div>

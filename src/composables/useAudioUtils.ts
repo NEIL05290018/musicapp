@@ -1,11 +1,12 @@
 import type { StemType } from './useAudioStore'
+import { t } from '@/i18n'
 
 const API_BASE = '/api'
 
-export const STEM_COLORS: Record<StemType, { bg: string; border: string; glow: string; label: string }> = {
-  vocals: { bg: 'rgba(79,143,255,0.15)', border: '#4f8fff', glow: 'rgba(79,143,255,0.3)', label: '人声' },
-  music: { bg: 'rgba(180,100,255,0.15)', border: '#b464ff', glow: 'rgba(180,100,255,0.3)', label: '配乐' },
-  sfx: { bg: 'rgba(255,140,60,0.15)', border: '#ff8c3c', glow: 'rgba(255,140,60,0.3)', label: '音效' },
+export const STEM_COLORS: Record<StemType, { bg: string; border: string; glow: string }> = {
+  vocals: { bg: 'rgba(79,143,255,0.15)', border: '#4f8fff', glow: 'rgba(79,143,255,0.3)' },
+  music: { bg: 'rgba(180,100,255,0.15)', border: '#b464ff', glow: 'rgba(180,100,255,0.3)' },
+  sfx: { bg: 'rgba(255,140,60,0.15)', border: '#ff8c3c', glow: 'rgba(255,140,60,0.3)' },
 }
 
 export function decodeAudioFile(file: File): Promise<AudioBuffer> {
@@ -18,10 +19,10 @@ export function decodeAudioFile(file: File): Promise<AudioBuffer> {
         audioContext.close()
         resolve(buffer)
       } catch {
-        reject(new Error('音频解码失败，请上传有效的音频文件'))
+        reject(new Error(t('utils.decodeFailed')))
       }
     }
-    reader.onerror = () => reject(new Error('文件读取失败'))
+    reader.onerror = () => reject(new Error(t('utils.readFailed')))
     reader.readAsArrayBuffer(file)
   })
 }
@@ -105,14 +106,14 @@ export async function uploadAndSeparate(
     })
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: '请求失败' }))
-      throw new Error(err.detail || '服务器错误')
+      const err = await res.json().catch(() => ({ detail: t('utils.requestFailed') }))
+      throw new Error(err.detail || t('utils.serverError'))
     }
 
     return res.json()
   } catch (err) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      throw new Error('无法连接后端服务，请确保 Python 后端已启动（python backend/main.py）')
+      throw new Error(t('utils.backendDown'))
     }
     throw err
   }
@@ -122,12 +123,12 @@ export async function pollStatus(taskId: string): Promise<StatusResponse> {
   try {
     const res = await fetch(`${API_BASE}/status/${taskId}`)
     if (!res.ok) {
-      throw new Error('获取任务状态失败')
+      throw new Error(t('utils.statusFailed'))
     }
     return res.json()
   } catch (err) {
     if (err instanceof TypeError && err.message.includes('fetch')) {
-      throw new Error('与后端连接中断')
+      throw new Error(t('utils.connectionLost'))
     }
     throw err
   }

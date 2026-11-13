@@ -4,6 +4,7 @@ import { X, Play, Pause, Clock, Disc3, Music } from 'lucide-vue-next'
 import type { Song } from '@/data/songs'
 import { songs } from '@/data/songs'
 import { fetchLyric, parseLyricText } from '@/composables/useMusicApi'
+import { t } from '@/i18n'
 
 const props = defineProps<{
   song: Song | null
@@ -105,15 +106,15 @@ function onPlayClick(song: Song) {
 
           <div v-else class="flex flex-col items-center justify-center py-8 text-center">
             <Music class="mb-3 h-8 w-8 text-white/15" />
-            <p class="text-sm text-white/35">暂无歌词信息</p>
-            <p class="mt-1 text-xs text-white/20">这首歌没有可用的歌词数据</p>
+            <p class="text-sm text-white/35">{{ t('modal.noLyrics') }}</p>
+            <p class="mt-1 text-xs text-white/20">{{ t('modal.noLyricsHint') }}</p>
           </div>
         </div>
 
         <div class="border-t border-white/[0.06] px-6 py-4">
           <div class="flex items-center gap-2 mb-3">
             <Disc3 class="h-3.5 w-3.5 text-[#e04090]" />
-            <span class="text-xs font-semibold text-white/50">相似推荐</span>
+            <span class="text-xs font-semibold text-white/50">{{ t('modal.similar') }}</span>
           </div>
           <div class="grid grid-cols-2 gap-2">
             <div
@@ -140,7 +141,7 @@ function onPlayClick(song: Song) {
             @click="onPlayClick(song)"
           >
             <Play class="h-4 w-4" />
-            立即播放
+            {{ t('modal.playNow') }}
           </button>
         </div>
       </div>

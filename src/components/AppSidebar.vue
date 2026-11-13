@@ -5,10 +5,13 @@ import {
   Compass, Sparkles, UserRound, LogIn, LogOut, Heart,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/composables/useAuthStore'
+import { t, locale, setLocale, type Locale } from '@/i18n'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+
+const langs: Locale[] = ['en', 'zh']
 
 const navItems = [
   { path: '/', name: 'workbench', label: 'Workbench', icon: Sparkles },
@@ -70,6 +73,21 @@ function goToAuth() {
       </div>
     </nav>
 
+    <div class="border-t border-white/[0.06] px-3 py-3">
+      <p class="mb-2 px-3 text-[10px] uppercase tracking-wider text-white/25">{{ t('sidebar.language') }}</p>
+      <div class="flex rounded-lg bg-white/[0.04] p-0.5">
+        <button
+          v-for="l in langs"
+          :key="l"
+          class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-all"
+          :class="locale === l ? 'bg-white/[0.10] text-white shadow-sm' : 'text-white/40 hover:text-white/70'"
+          @click="setLocale(l)"
+        >
+          {{ l === 'en' ? 'English' : '中文' }}
+        </button>
+      </div>
+    </div>
+
     <div class="border-t border-white/[0.06] px-3 py-4">
       <template v-if="auth.isLoggedIn() && auth.state.user">
         <div class="flex items-center gap-3 rounded-lg px-3 py-2">
@@ -83,16 +101,16 @@ function goToAuth() {
         </div>
         <div class="mt-2 flex items-center gap-1 text-[10px] text-white/25 px-3">
           <Heart class="h-3 w-3 text-[#e04090]" />
-          <span>{{ auth.state.favoriteSongIds.length }} 首收藏</span>
+          <span>{{ t('sidebar.favSongs', { n: auth.state.favoriteSongIds.length }) }}</span>
           <span class="mx-1">·</span>
-          <span>{{ auth.state.favoritePlaylistIds.length }} 个歌单</span>
+          <span>{{ t('sidebar.favPlaylists', { n: auth.state.favoritePlaylistIds.length }) }}</span>
         </div>
         <button
           class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] px-3 py-2 text-xs text-white/45 hover:bg-white/[0.06] hover:text-white/70 transition-all"
           @click="handleLogout"
         >
           <LogOut class="h-3.5 w-3.5" />
-          <span>退出登录</span>
+          <span>{{ t('sidebar.logout') }}</span>
         </button>
       </template>
       <template v-else>
@@ -101,7 +119,7 @@ function goToAuth() {
           @click="goToAuth"
         >
           <LogIn class="h-3.5 w-3.5" />
-          <span>登录 / 注册</span>
+          <span>{{ t('sidebar.login') }}</span>
         </button>
       </template>
     </div>

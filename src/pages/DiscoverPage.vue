@@ -10,6 +10,7 @@ import type { Song } from '@/data/songs'
 import { songs, genres } from '@/data/songs'
 import { searchSongs, resolvePlayableUrl, type MusicApiSong } from '@/composables/useMusicApi'
 import { useAuthStore } from '@/composables/useAuthStore'
+import { t } from '@/i18n'
 import SongDetailModal from '@/components/SongDetailModal.vue'
 
 interface ApiSong extends Song {
@@ -336,7 +337,7 @@ function progressPercent(): string {
 onMounted(async () => {
   isLoadingApi.value = true
 
-  const queries = ['周杰伦', 'Taylor Swift', '邓紫棋', '林俊杰', 'Ed Sheeran', 'BTS']
+  const queries = ['Taylor Swift', 'Ed Sheeran', 'BTS', 'Coldplay', 'Adele', 'Imagine Dragons']
   const allResults: MusicApiSong[] = []
 
   for (const q of queries) {
@@ -365,7 +366,7 @@ watch(playingSong, (song) => {
   if (song) {
     document.title = `${song.title} - ${song.artist} | AudioSift`
   } else {
-    document.title = 'AudioSift - AI 音频分离'
+    document.title = t('discover.documentTitle')
   }
 })
 </script>
@@ -378,10 +379,10 @@ watch(playingSong, (song) => {
       <h1 class="text-2xl font-bold text-white">Discover</h1>
       <div v-if="isLoadingApi" class="flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-1">
         <Loader2 class="h-3 w-3 animate-spin text-[#e04090]" />
-        <span class="text-xs text-white/40">正在加载在线曲库...</span>
+        <span class="text-xs text-white/40">{{ t('discover.loading') }}</span>
       </div>
       <div v-else-if="apiSongs.length > 0" class="rounded-full bg-emerald-500/15 px-3 py-1">
-        <span class="text-xs font-medium text-emerald-400">在线曲库已连接</span>
+        <span class="text-xs font-medium text-emerald-400">{{ t('discover.libraryConnected') }}</span>
       </div>
     </div>
 
@@ -392,10 +393,10 @@ watch(playingSong, (song) => {
             <UserRound class="h-4 w-4 text-white" />
           </div>
           <div>
-            <h2 class="text-sm font-semibold text-white">我的音乐中心</h2>
+            <h2 class="text-sm font-semibold text-white">{{ t('discover.myMusic') }}</h2>
             <p class="text-xs text-white/35">
               <Heart class="inline h-3 w-3 text-[#e04090] mr-1" />
-              {{ auth.state.favoriteSongIds.length }} 首收藏歌曲 · {{ auth.state.favoritePlaylistIds.length }} 个收藏歌单
+              {{ t('discover.favSummary', { s: auth.state.favoriteSongIds.length, p: auth.state.favoritePlaylistIds.length }) }}
             </p>
           </div>
         </div>
@@ -403,7 +404,7 @@ watch(playingSong, (song) => {
         <div v-if="favoriteSongs.length > 0">
           <div class="mb-3 flex items-center gap-2">
             <Heart class="h-3.5 w-3.5 text-[#e04090]" />
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-white/50">收藏歌曲</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-white/50">{{ t('discover.favSongs') }}</h3>
           </div>
           <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
             <div
@@ -434,7 +435,7 @@ watch(playingSong, (song) => {
         <div v-if="favoritePlaylists.length > 0" class="mt-5">
           <div class="mb-3 flex items-center gap-2">
             <ListMusic class="h-3.5 w-3.5 text-[#5b9cff]" />
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-white/50">收藏歌单</h3>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-white/50">{{ t('discover.favPlaylists') }}</h3>
           </div>
           <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
             <div
@@ -462,8 +463,8 @@ watch(playingSong, (song) => {
 
         <div v-if="favoriteSongs.length === 0 && favoritePlaylists.length === 0" class="text-center py-6">
           <Heart class="mx-auto h-8 w-8 text-white/10 mb-2" />
-          <p class="text-sm text-white/25">还没有收藏内容</p>
-          <p class="text-xs text-white/15 mt-1">浏览下方歌曲和歌单，点击心形图标即可收藏</p>
+          <p class="text-sm text-white/25">{{ t('discover.noFavs') }}</p>
+          <p class="text-xs text-white/15 mt-1">{{ t('discover.noFavsHint') }}</p>
         </div>
       </div>
     </section>

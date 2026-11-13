@@ -2,15 +2,10 @@
 import { Download, Package } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { getDownloadUrl } from '@/composables/useAudioUtils'
+import { t } from '@/i18n'
 import type { StemType } from '@/composables/useAudioStore'
 
 const { state, setExportFormat } = useAudioStore()
-
-const stemLabel: Record<StemType, string> = {
-  vocals: '人声',
-  music: '配乐',
-  sfx: '音效',
-}
 
 function downloadAll() {
   const stems = Object.keys(state.results) as StemType[]
@@ -18,7 +13,7 @@ function downloadAll() {
     const url = getDownloadUrl(stem, state.taskId || '', state.exportFormat)
     const a = document.createElement('a')
     a.href = url
-    a.download = `AudioSift_${stemLabel[stem]}.${state.exportFormat}`
+    a.download = `AudioSift_${t(`stem.${stem}`)}.${state.exportFormat}`
     a.click()
   })
 }
@@ -27,7 +22,7 @@ function downloadSingle(stem: StemType) {
   const url = getDownloadUrl(stem, state.taskId || '', state.exportFormat)
   const a = document.createElement('a')
   a.href = url
-  a.download = `AudioSift_${stemLabel[stem]}.${state.exportFormat}`
+  a.download = `AudioSift_${t(`stem.${stem}`)}.${state.exportFormat}`
   a.click()
 }
 </script>
@@ -36,7 +31,7 @@ function downloadSingle(stem: StemType) {
   <div v-if="Object.keys(state.results).length > 0" class="glass-card flex flex-col gap-4 p-4">
     <div class="flex items-center gap-2">
       <Download class="h-4 w-4 text-white/55" />
-      <span class="text-xs font-semibold text-white/60">导出设置</span>
+      <span class="text-xs font-semibold text-white/60">{{ t('export.title') }}</span>
     </div>
 
     <div class="flex flex-wrap items-center gap-3">
@@ -48,7 +43,7 @@ function downloadSingle(stem: StemType) {
           :class="state.exportFormat === fmt ? 'bg-white/[0.10] text-white shadow-sm' : 'text-white/45 hover:text-white/65'"
           @click="setExportFormat(fmt)"
         >
-          {{ fmt === 'wav' ? 'WAV 无损' : 'MP3 压缩' }}
+          {{ fmt === 'wav' ? t('export.wav') : t('export.mp3') }}
         </button>
       </div>
 
@@ -57,7 +52,7 @@ function downloadSingle(stem: StemType) {
         @click="downloadAll"
       >
         <Package class="h-4 w-4" />
-        打包下载全部
+        {{ t('export.downloadAll') }}
       </button>
     </div>
 
@@ -69,7 +64,7 @@ function downloadSingle(stem: StemType) {
         @click="downloadSingle(stem)"
       >
         <Download class="h-3 w-3" />
-        {{ stemLabel[stem] }}
+        {{ t('stem.' + stem) }}
       </button>
     </div>
   </div>
