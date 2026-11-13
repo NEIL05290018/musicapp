@@ -62,7 +62,7 @@ function onPlayClick(song: Song) {
 
       <div class="relative z-10 flex max-h-[85vh] w-full max-w-[560px] flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-[#111118]/90 backdrop-blur-2xl shadow-2xl">
         <button
-          class="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/60 transition-colors hover:bg-black/60 hover:text-white"
+          class="absolute right-4 top-4 z-20 flex h-8 w-8 items-center justify-center rounded-none bg-black/40 text-white/60 transition-colors hover:bg-black/60 hover:text-white"
           @click="emit('close')"
         >
           <X class="h-4 w-4" />
@@ -137,7 +137,7 @@ function onPlayClick(song: Song) {
 
         <div class="border-t border-white/[0.06] px-6 py-4">
           <button
-            class="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#e04090] to-[#ff6b9d] py-3 text-sm font-semibold text-white transition-all duration-300 hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(224,64,144,0.3)]"
+            class="flex w-full items-center justify-center gap-2 rounded-none bg-[#e04090] py-3 text-sm font-semibold text-white transition-colors duration-300 hover:bg-[#ff5aa5] active:bg-[#c02f76]"
             @click="onPlayClick(song)"
           >
             <Play class="h-4 w-4" />

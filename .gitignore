@@ -33,3 +33,5 @@ backend/*.pyc
 # User uploads and AI outputs (runtime data)
 uploads/
 outputs/
+
+docs/

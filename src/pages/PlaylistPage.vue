@@ -73,7 +73,7 @@ function progressPercent(): string {
 <template>
   <div class="px-8 pb-28 pt-8">
     <button
-      class="mb-8 flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-white/40 hover:bg-white/[0.05] hover:text-white/70 transition-all"
+      class="mb-8 flex items-center gap-2 rounded-none px-3 py-2 text-sm text-white/40 hover:bg-white/[0.05] hover:text-white/70 transition-all"
       @click="goBack"
     >
       <ArrowLeft class="h-4 w-4" />
@@ -144,7 +144,7 @@ function progressPercent(): string {
 
           <div class="flex items-center gap-3">
             <button
-              class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black hover:scale-105 transition-all"
+              class="flex h-9 w-9 items-center justify-center rounded-none bg-white text-black hover:scale-105 transition-all"
               @click="isPlaying ? stopPlayback() : resumePlayback()"
             >
               <Pause v-if="isPlaying" class="h-4 w-4" />

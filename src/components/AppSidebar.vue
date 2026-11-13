@@ -58,7 +58,7 @@ function goToAuth() {
       <div
         v-for="item in navItems"
         :key="item.path"
-        class="group flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200"
+        class="group flex cursor-pointer items-center gap-3 rounded-none px-3 py-2.5 text-sm font-medium transition-all duration-200"
         :class="isActive(item.path)
           ? 'bg-white/[0.08] text-white'
           : 'text-white/45 hover:bg-white/[0.04] hover:text-white/80'"
@@ -75,11 +75,11 @@ function goToAuth() {
 
     <div class="border-t border-white/[0.06] px-3 py-3">
       <p class="mb-2 px-3 text-[10px] uppercase tracking-wider text-white/25">{{ t('sidebar.language') }}</p>
-      <div class="flex rounded-lg bg-white/[0.04] p-0.5">
+      <div class="flex rounded-none bg-white/[0.04] p-0.5">
         <button
           v-for="l in langs"
           :key="l"
-          class="flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition-all"
+          class="flex-1 rounded-none px-2 py-1.5 text-xs font-medium transition-all"
           :class="locale === l ? 'bg-white/[0.10] text-white shadow-sm' : 'text-white/40 hover:text-white/70'"
           @click="setLocale(l)"
         >
@@ -106,7 +106,7 @@ function goToAuth() {
           <span>{{ t('sidebar.favPlaylists', { n: auth.state.favoritePlaylistIds.length }) }}</span>
         </div>
         <button
-          class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] px-3 py-2 text-xs text-white/45 hover:bg-white/[0.06] hover:text-white/70 transition-all"
+          class="mt-3 flex w-full items-center justify-center gap-2 rounded-none border border-white/[0.08] px-3 py-2 text-xs text-white/45 hover:bg-white/[0.06] hover:text-white/70 transition-all"
           @click="handleLogout"
         >
           <LogOut class="h-3.5 w-3.5" />
@@ -115,7 +115,7 @@ function goToAuth() {
       </template>
       <template v-else>
         <button
-          class="flex w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-[#e04090] to-[#5b9cff] px-3 py-2.5 text-xs font-medium text-white transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-[#e04090]/20 active:scale-[0.98]"
+          class="flex w-full items-center justify-center gap-2 rounded-none bg-[#e04090] px-3 py-2.5 text-xs font-medium text-white transition-colors hover:bg-[#ff5aa5] active:bg-[#c02f76]"
           @click="goToAuth"
         >
           <LogIn class="h-3.5 w-3.5" />

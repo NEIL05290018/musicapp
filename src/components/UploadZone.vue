@@ -95,7 +95,7 @@ function handleReset() {
         </p>
       </div>
       <button
-        class="rounded-lg px-3 py-1.5 text-xs text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
+        class="rounded-none px-3 py-1.5 text-xs text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
         @click="handleReset"
       >
         {{ t('upload.replace') }}

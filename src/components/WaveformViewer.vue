@@ -193,14 +193,14 @@ onUnmounted(() => {
       </div>
       <div class="flex items-center gap-1">
         <button
-          class="flex h-7 w-7 items-center justify-center rounded-md text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
+          class="flex h-7 w-7 items-center justify-center rounded-none text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
           @click="changeZoom(-2)"
         >
           <ZoomOut class="h-3.5 w-3.5" />
         </button>
         <span class="min-w-[40px] text-center text-xs text-white/55">{{ zoom.toFixed(0) }}x</span>
         <button
-          class="flex h-7 w-7 items-center justify-center rounded-md text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
+          class="flex h-7 w-7 items-center justify-center rounded-none text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
           @click="changeZoom(2)"
         >
           <ZoomIn class="h-3.5 w-3.5" />
@@ -232,7 +232,7 @@ onUnmounted(() => {
         </span>
         <span class="text-xs text-white/45">({{ (sel.endTime - sel.startTime).toFixed(1) }}s)</span>
         <button
-          class="ml-auto flex h-5 w-5 items-center justify-center rounded text-white/20 transition-colors hover:bg-red-500/10 hover:text-red-400"
+          class="ml-auto flex h-5 w-5 items-center justify-center rounded-none text-white/20 transition-colors hover:bg-red-500/10 hover:text-red-400"
           @click="removeTimeSelection(sel.id)"
         >
           <Trash2 class="h-3 w-3" />

@@ -37,9 +37,9 @@ function getGlassColor(index: number) {
 }
 
 const banners = [
-  { id: 'b1', text: 'Explore Your Music Universe', sub: 'AI-Powered Recommendation Engine', color: 'from-[#e04090] to-[#ff6b9d]' },
-  { id: 'b2', text: 'Curated Playlists Daily', sub: 'Discover sounds that define you', color: 'from-[#5b9cff] to-[#7bc8ff]' },
-  { id: 'b3', text: 'Deep Dive Listening', sub: 'Every track tells a story', color: 'from-[#a855f7] to-[#c084fc]' },
+  { id: 'b1', text: 'Explore Your Music Universe', sub: 'AI-Powered Recommendation Engine', color: '#ff2d95' },
+  { id: 'b2', text: 'Curated Playlists Daily', sub: 'Discover sounds that define you', color: '#00ff9d' },
+  { id: 'b3', text: 'Deep Dive Listening', sub: 'Every track tells a story', color: '#ffb700' },
 ]
 
 let nextColorIdx = 0
@@ -420,7 +420,7 @@ watch(playingSong, (song) => {
                   <Pause v-else class="h-7 w-7 text-white" />
                 </div>
                 <button
-                  class="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-[#e04090] backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                  class="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-none bg-black/40 text-[#e04090] backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
                   @click="handleToggleSongFav(song.id, $event)"
                 >
                   <Heart class="h-3.5 w-3.5" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
@@ -449,7 +449,7 @@ watch(playingSong, (song) => {
                   <ListMusic class="h-7 w-7 text-white" />
                 </div>
                 <button
-                  class="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/40 text-[#5b9cff] backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
+                  class="absolute top-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-none bg-black/40 text-[#5b9cff] backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity hover:scale-110"
                   @click="handleTogglePlaylistFav(pl.id, $event)"
                 >
                   <Heart class="h-3.5 w-3.5" :class="auth.isPlaylistFavorited(pl.id) ? 'fill-[#5b9cff]' : ''" />
@@ -469,18 +469,24 @@ watch(playingSong, (song) => {
       </div>
     </section>
 
-    <div class="mb-12 grid grid-cols-3 gap-4">
+    <div class="mb-12 grid grid-cols-3 gap-5">
       <div
         v-for="banner in banners"
         :key="banner.id"
-        class="group relative cursor-pointer overflow-hidden rounded-2xl p-6 transition-all duration-500 hover:scale-[1.02]"
-        :class="`bg-gradient-to-br ${banner.color}`"
+        class="group relative cursor-pointer overflow-hidden rounded-[28px] border bg-[#121216] px-8 py-12 text-center transition-all duration-500 hover:-translate-y-1"
+        :style="{ borderColor: `${banner.color}3d` }"
+        @mouseenter="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}80`; el.style.boxShadow = `0 16px 48px ${banner.color}33, 0 24px 64px rgba(0,0,0,0.45)` }"
+        @mouseleave="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}3d`; el.style.boxShadow = '' }"
       >
-        <div class="absolute right-4 top-4 opacity-20 group-hover:opacity-40 transition-opacity">
-          <Sparkles class="h-12 w-12 text-white" />
-        </div>
-        <h2 class="relative text-lg font-bold text-white">{{ banner.text }}</h2>
-        <p class="relative mt-1 text-sm text-white/80">{{ banner.sub }}</p>
+        <div
+          class="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full transition-opacity duration-500 opacity-80 group-hover:opacity-100"
+          :style="{ background: `radial-gradient(circle, ${banner.color}45 0%, transparent 70%)` }"
+        />
+        <h2 class="relative text-2xl font-semibold tracking-tight text-white">{{ banner.text }}</h2>
+        <p class="relative mt-2 text-sm text-[#b0b0b8]">{{ banner.sub }}</p>
+        <p class="relative mt-7 text-sm font-semibold" :style="{ color: banner.color }">
+          Learn more<span class="ml-1">›</span>
+        </p>
       </div>
     </div>
 
@@ -491,8 +497,8 @@ watch(playingSong, (song) => {
           <h2 class="text-sm font-semibold uppercase tracking-wider text-white/55">Trending Now</h2>
         </div>
         <div class="flex gap-2">
-          <button class="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05] text-white/40 hover:bg-white/[0.10] hover:text-white/70 transition-all" @click="scrollContainer(-1, 'topScroll')">←</button>
-          <button class="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.05] text-white/40 hover:bg-white/[0.10] hover:text-white/70 transition-all" @click="scrollContainer(1, 'topScroll')">→</button>
+          <button class="flex h-8 w-8 items-center justify-center rounded-none bg-white/[0.05] text-white/40 hover:bg-white/[0.10] hover:text-white/70 transition-all" @click="scrollContainer(-1, 'topScroll')">←</button>
+          <button class="flex h-8 w-8 items-center justify-center rounded-none bg-white/[0.05] text-white/40 hover:bg-white/[0.10] hover:text-white/70 transition-all" @click="scrollContainer(1, 'topScroll')">→</button>
         </div>
       </div>
       <div data-scroll="topScroll" class="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
@@ -514,7 +520,7 @@ watch(playingSong, (song) => {
               <Pause v-else class="h-8 w-8 text-white" />
             </div>
             <button
-              class="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-[#e04090]"
+              class="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-none bg-black/40 text-white/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-[#e04090]"
               :class="auth.isSongFavorited(song.id) ? '!opacity-100 !text-[#e04090]' : ''"
               @click="handleToggleSongFav(song.id, $event)"
             >
@@ -556,7 +562,7 @@ watch(playingSong, (song) => {
             <p class="text-xs text-white/40 truncate">{{ song.artist }} · {{ song.album }}</p>
           </div>
           <button
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/25 hover:text-[#e04090] hover:bg-white/[0.08] transition-all"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-white/25 hover:text-[#e04090] hover:bg-white/[0.08] transition-all"
             :class="auth.isSongFavorited(song.id) ? '!text-[#e04090]' : ''"
             @click="handleToggleSongFav(song.id, $event)"
           >
@@ -587,7 +593,7 @@ watch(playingSong, (song) => {
               <ListMusic class="h-8 w-8 text-white" />
             </div>
             <button
-              class="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/40 text-white/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-[#5b9cff]"
+              class="absolute top-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-none bg-black/40 text-white/60 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-all hover:scale-110 hover:text-[#5b9cff]"
               :class="auth.isPlaylistFavorited(pl.id) ? '!opacity-100 !text-[#5b9cff]' : ''"
               @click="handleTogglePlaylistFav(pl.id, $event)"
             >
@@ -640,7 +646,7 @@ watch(playingSong, (song) => {
           </div>
           <span class="w-16 text-right shrink-0 rounded-md border border-white/[0.06] bg-white/[0.03] px-2 py-0.5 text-[10px] text-white/30">{{ song.genre }}</span>
           <button
-            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white/20 hover:text-[#e04090] hover:bg-white/[0.08] transition-all"
+            class="flex h-7 w-7 shrink-0 items-center justify-center rounded-none text-white/20 hover:text-[#e04090] hover:bg-white/[0.08] transition-all"
             :class="auth.isSongFavorited(song.id) ? '!text-[#e04090]' : ''"
             @click="handleToggleSongFav(song.id, $event)"
           >
@@ -680,7 +686,7 @@ watch(playingSong, (song) => {
                 <SkipBack class="h-5 w-5" />
               </button>
               <button
-                class="flex h-9 w-9 items-center justify-center rounded-full bg-white text-black hover:scale-105 transition-all"
+                class="flex h-9 w-9 items-center justify-center rounded-none bg-white text-black hover:scale-105 transition-all"
                 @click="isPlaying ? pauseSong() : resumeSong()"
               >
                 <Loader2 v-if="isLoadingAudioUrl" class="h-4 w-4 animate-spin" />

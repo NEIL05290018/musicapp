@@ -87,7 +87,7 @@ onUnmounted(() => {
 
     <div class="flex items-center gap-2">
       <button
-        class="flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200 hover:scale-110"
+        class="flex h-9 w-9 items-center justify-center rounded-none transition-all duration-200 hover:scale-110"
         :style="{ backgroundColor: isPlaying ? '#e04090' : `${color.border}20`, color: isPlaying ? 'white' : color.border }"
         @click="togglePlay"
       >
@@ -109,7 +109,7 @@ onUnmounted(() => {
       </div>
 
       <button
-        class="flex h-8 w-8 items-center justify-center rounded-lg text-white/30 transition-colors hover:bg-white/[0.08] hover:text-white/60"
+        class="flex h-8 w-8 items-center justify-center rounded-none text-white/30 transition-colors hover:bg-white/[0.08] hover:text-white/60"
         @click="handleDownload"
       >
         <Download class="h-3.5 w-3.5" />

@@ -93,7 +93,7 @@ function handleStop() {
       <button
         v-for="stem in STEMS"
         :key="stem.key"
-        class="flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-300"
+        class="flex flex-1 items-center justify-center gap-2 rounded-none px-4 py-2.5 text-sm font-medium transition-all duration-300"
         :class="state.activeStems.includes(stem.key) ? 'text-white' : 'text-white/25 hover:text-white/40'"
         :style="{
           backgroundColor: state.activeStems.includes(stem.key) ? STEM_COLORS[stem.key].bg : 'rgba(255,255,255,0.02)',
@@ -109,9 +109,9 @@ function handleStop() {
 
     <div class="flex items-center gap-3">
       <button
-        class="glow-button flex flex-1 items-center justify-center gap-2 rounded-lg py-3 text-sm font-semibold transition-all duration-300"
+        class="glow-button flex flex-1 items-center justify-center gap-2 rounded-none py-3 text-sm font-semibold transition-colors duration-300"
         :class="canSeparate() && !isRunning()
-          ? 'bg-gradient-to-r from-[#4f8fff] to-[#e04090] text-white hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(79,143,255,0.3)]'
+          ? 'bg-[#e04090] text-white hover:bg-[#ff5aa5] active:bg-[#c02f76]'
           : 'cursor-not-allowed bg-white/[0.04] text-white/20'"
         :disabled="!canSeparate() || isRunning()"
         @click="handleSeparate"
@@ -125,7 +125,7 @@ function handleStop() {
 
       <button
         v-if="isRunning()"
-        class="flex h-11 w-11 items-center justify-center rounded-lg border border-white/[0.10] text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
+        class="flex h-11 w-11 items-center justify-center rounded-none border border-white/[0.10] text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
         @click="handleStop"
       >
         <Square class="h-4 w-4" />

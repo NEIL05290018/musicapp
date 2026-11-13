@@ -126,7 +126,7 @@ function goBack() {
           <button
             type="submit"
             :disabled="isLoading"
-            class="w-full rounded-xl bg-gradient-to-r from-[#e04090] to-[#5b9cff] py-3 text-sm font-semibold text-white transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-[#e04090]/20 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none"
+            class="w-full rounded-none bg-[#e04090] py-3 text-sm font-semibold text-white transition-colors hover:bg-[#ff5aa5] active:bg-[#c02f76] disabled:opacity-60 disabled:pointer-events-none"
           >
             <Loader2 v-if="isLoading" class="mx-auto h-4 w-4 animate-spin" />
             <span v-else>{{ isRegister ? t('auth.register') : t('auth.login') }}</span>
@@ -149,28 +149,28 @@ function goBack() {
           <p class="text-center text-xs text-white/25 mb-3">{{ t('auth.testAccounts') }}</p>
           <div class="grid grid-cols-2 gap-2">
             <button
-              class="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
+              class="rounded-none border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
               @click="email = 'test@alice.com'; password = 'password123'"
             >
               <span class="font-medium text-white/60">Alice</span>
               <span class="block text-white/25">test@alice.com</span>
             </button>
             <button
-              class="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
+              class="rounded-none border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
               @click="email = 'test@bob.com'; password = 'password123'"
             >
               <span class="font-medium text-white/60">Bob</span>
               <span class="block text-white/25">test@bob.com</span>
             </button>
             <button
-              class="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
+              class="rounded-none border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
               @click="email = 'test@carol.com'; password = 'password123'"
             >
               <span class="font-medium text-white/60">Carol</span>
               <span class="block text-white/25">test@carol.com</span>
             </button>
             <button
-              class="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
+              class="rounded-none border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/50 hover:bg-white/[0.06] hover:text-white/70 transition-all"
               @click="email = 'admin@audiosift.com'; password = 'admin123'"
             >
               <span class="font-medium text-white/60">Admin</span>
