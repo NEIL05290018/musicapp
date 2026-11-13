@@ -3,10 +3,10 @@ import { t } from '@/i18n'
 
 const API_BASE = '/api'
 
-export const STEM_COLORS: Record<StemType, { bg: string; border: string; glow: string }> = {
-  vocals: { bg: 'rgba(79,143,255,0.15)', border: '#4f8fff', glow: 'rgba(79,143,255,0.3)' },
-  music: { bg: 'rgba(180,100,255,0.15)', border: '#b464ff', glow: 'rgba(180,100,255,0.3)' },
-  sfx: { bg: 'rgba(255,140,60,0.15)', border: '#ff8c3c', glow: 'rgba(255,140,60,0.3)' },
+export const STEM_COLORS: Record<StemType, { bg: string; border: string }> = {
+  vocals: { bg: 'rgba(79,143,255,0.12)', border: '#4f8fff' },
+  music: { bg: 'rgba(180,100,255,0.12)', border: '#b464ff' },
+  sfx: { bg: 'rgba(255,140,60,0.12)', border: '#ff8c3c' },
 }
 
 export function decodeAudioFile(file: File): Promise<AudioBuffer> {

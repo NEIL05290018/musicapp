@@ -85,7 +85,7 @@ function handleStop() {
   <div class="glass-card flex flex-col gap-4 p-4">
     <div class="flex items-center gap-2">
       <Sparkles class="h-4 w-4 text-[#e04090]" />
-      <span class="text-xs font-semibold text-white/60">{{ t('sep.title') }}</span>
+      <span class="text-xs font-semibold text-ink-secondary">{{ t('sep.title') }}</span>
       <span class="ml-auto rounded-full bg-[#e04090]/15 px-2 py-0.5 text-xs font-medium text-[#e04090]">Demucs v4</span>
     </div>
 
@@ -93,12 +93,12 @@ function handleStop() {
       <button
         v-for="stem in STEMS"
         :key="stem.key"
-        class="flex flex-1 items-center justify-center gap-2 rounded-none px-4 py-2.5 text-sm font-medium transition-all duration-300"
-        :class="state.activeStems.includes(stem.key) ? 'text-white' : 'text-white/25 hover:text-white/40'"
+        class="flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium transition-all duration-300"
+        :class="state.activeStems.includes(stem.key) ? 'text-white' : 'text-ink-muted hover:text-ink-secondary'"
+        :aria-pressed="state.activeStems.includes(stem.key)"
         :style="{
           backgroundColor: state.activeStems.includes(stem.key) ? STEM_COLORS[stem.key].bg : 'rgba(255,255,255,0.02)',
           border: `1px solid ${state.activeStems.includes(stem.key) ? STEM_COLORS[stem.key].border : 'rgba(255,255,255,0.06)'}`,
-          boxShadow: state.activeStems.includes(stem.key) ? `0 0 20px ${STEM_COLORS[stem.key].glow}` : 'none',
         }"
         @click="toggleStem(stem.key)"
       >
@@ -109,10 +109,10 @@ function handleStop() {
 
     <div class="flex items-center gap-3">
       <button
-        class="glow-button flex flex-1 items-center justify-center gap-2 rounded-none py-3 text-sm font-semibold transition-colors duration-300"
+        class="flex flex-1 items-center justify-center gap-2 rounded-full py-3 text-sm font-semibold transition-colors duration-300"
         :class="canSeparate() && !isRunning()
-          ? 'bg-[#e04090] text-white hover:bg-[#ff5aa5] active:bg-[#c02f76]'
-          : 'cursor-not-allowed bg-white/[0.04] text-white/20'"
+          ? 'bg-brand-pink text-white hover:bg-brand-pink-hover active:bg-brand-pink-active'
+          : 'cursor-not-allowed bg-brand-pink text-white opacity-50'"
         :disabled="!canSeparate() || isRunning()"
         @click="handleSeparate"
       >
@@ -125,7 +125,9 @@ function handleStop() {
 
       <button
         v-if="isRunning()"
-        class="flex h-11 w-11 items-center justify-center rounded-none border border-white/[0.10] text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
+        class="flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.10] text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
+        :aria-label="t('sep.stop')"
+        :title="t('sep.stop')"
         @click="handleStop"
       >
         <Square class="h-4 w-4" />
@@ -135,8 +137,17 @@ function handleStop() {
     <div
       v-if="state.separationStatus === 'processing' || state.separationStatus === 'uploading'"
       class="space-y-1.5"
+      role="status"
+      aria-live="polite"
     >
-      <div class="h-1 overflow-hidden rounded-full bg-white/[0.06]">
+      <div
+        class="h-1 overflow-hidden rounded-full bg-white/[0.06]"
+        role="progressbar"
+        :aria-valuenow="Math.round(state.separationProgress)"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        :aria-label="t('sep.progress')"
+      >
         <div
           class="h-full rounded-full bg-gradient-to-r from-[#4f8fff] to-[#e04090] transition-all duration-500"
           :style="{ width: `${state.separationProgress}%` }"
@@ -150,7 +161,8 @@ function handleStop() {
 
     <div
       v-if="state.separationStatus === 'error' && state.separationError"
-      class="rounded-lg bg-red-500/10 px-3 py-2 text-xs text-red-300 font-medium"
+      class="rounded-[28px] border border-semantic-error/20 bg-semantic-error/10 px-4 py-3 text-sm font-medium text-semantic-error"
+      role="alert"
     >
       {{ state.separationError }}
     </div>

@@ -27,7 +27,7 @@ const features = [
         <span class="text-xs text-white/70">{{ t('home.badge') }}</span>
       </div>
       <h1 class="mb-3 text-3xl font-bold tracking-tight text-white/95">{{ t('home.title') }}</h1>
-      <p class="mx-auto max-w-lg text-sm leading-relaxed text-white/55">
+      <p class="mx-auto max-w-lg text-sm leading-relaxed text-ink-secondary">
         {{ t('home.subtitle') }}
       </p>
 
@@ -38,7 +38,7 @@ const features = [
           class="flex items-center gap-2"
         >
           <div
-            class="flex h-7 w-7 items-center justify-center rounded-lg"
+            class="flex h-7 w-7 items-center justify-center rounded-full"
             :style="{ backgroundColor: `${STEM_COLORS[f.key].border}28`, color: STEM_COLORS[f.key].border }"
           >
             <component :is="f.icon" class="h-4 w-4" />
@@ -55,7 +55,7 @@ const features = [
 
       <SeparationPanel v-if="state.audioBuffer" />
 
-      <div v-if="Object.keys(state.results).length > 0" class="flex flex-col gap-3 rounded-2xl border border-white/[0.10] bg-white/[0.05] p-5 backdrop-blur-xl">
+      <div v-if="Object.keys(state.results).length > 0" class="glass-card flex flex-col gap-3 p-5" aria-live="polite">
         <span class="text-xs font-semibold text-white/60">{{ t('home.results') }}</span>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
           <TrackCard

@@ -14,6 +14,8 @@ const scrollOffset = ref(0)
 const isSelecting = ref(false)
 const selectionStart = ref(0)
 const selectionEnd = ref(0)
+const keyboardStart = ref(0)
+const keyboardEnd = ref(0)
 
 function draw() {
   const canvas = canvasRef.value
@@ -124,26 +126,28 @@ function getTimeFromX(clientX: number): number {
   const canvas = canvasRef.value
   if (!canvas) return 0
   const rect = canvas.getBoundingClientRect()
-  const x = clientX - rect.left
+  const x = Math.min(rect.width, Math.max(0, clientX - rect.left))
   const visibleDuration = state.audioDuration / zoom.value
   const visibleStart = (state.audioDuration - visibleDuration) * scrollOffset.value
-  return visibleStart + (x / rect.width) * visibleDuration
+  return Math.min(state.audioDuration, Math.max(0, visibleStart + (x / rect.width) * visibleDuration))
 }
 
-function onMouseDown(e: MouseEvent) {
+function onPointerDown(e: PointerEvent) {
   if (e.button !== 0) return
+  const canvas = e.currentTarget as HTMLCanvasElement
+  canvas.setPointerCapture(e.pointerId)
   const time = getTimeFromX(e.clientX)
   isSelecting.value = true
   selectionStart.value = time
   selectionEnd.value = time
 }
 
-function onMouseMove(e: MouseEvent) {
+function onPointerMove(e: PointerEvent) {
   if (!isSelecting.value) return
   selectionEnd.value = getTimeFromX(e.clientX)
 }
 
-function onMouseUp() {
+function onPointerUp(e: PointerEvent) {
   if (!isSelecting.value) return
   const start = Math.min(selectionStart.value, selectionEnd.value)
   const end = Math.max(selectionStart.value, selectionEnd.value)
@@ -151,6 +155,8 @@ function onMouseUp() {
     addTimeSelection({ id: generateUUID(), startTime: start, endTime: end })
   }
   isSelecting.value = false
+  const canvas = e.currentTarget as HTMLCanvasElement
+  if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
 }
 
 function onWheel(e: WheelEvent) {
@@ -162,12 +168,35 @@ function changeZoom(delta: number) {
   zoom.value = Math.max(1, Math.min(50, zoom.value + delta))
 }
 
+function updateKeyboardStart(e: Event) {
+  const value = Number((e.target as HTMLInputElement).value)
+  keyboardStart.value = Math.min(value, Math.max(0, keyboardEnd.value - 0.1))
+}
+
+function updateKeyboardEnd(e: Event) {
+  const value = Number((e.target as HTMLInputElement).value)
+  keyboardEnd.value = Math.max(value, Math.min(state.audioDuration, keyboardStart.value + 0.1))
+}
+
+function addKeyboardSelection() {
+  if (keyboardEnd.value - keyboardStart.value < 0.1) return
+  addTimeSelection({
+    id: generateUUID(),
+    startTime: keyboardStart.value,
+    endTime: keyboardEnd.value,
+  })
+}
+
 watch([zoom, scrollOffset, () => state.timeSelections, isSelecting, selectionStart, selectionEnd], () => {
   nextTick(draw)
 })
 
 watch(() => state.audioBuffer, () => {
-  if (state.audioBuffer) nextTick(draw)
+  if (state.audioBuffer) {
+    keyboardStart.value = 0
+    keyboardEnd.value = Math.min(state.audioDuration, 30)
+    nextTick(draw)
+  }
 })
 
 onMounted(() => {
@@ -193,14 +222,14 @@ onUnmounted(() => {
       </div>
       <div class="flex items-center gap-1">
         <button
-          class="flex h-7 w-7 items-center justify-center rounded-none text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
+          class="flex h-7 w-7 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
           @click="changeZoom(-2)"
         >
           <ZoomOut class="h-3.5 w-3.5" />
         </button>
         <span class="min-w-[40px] text-center text-xs text-white/55">{{ zoom.toFixed(0) }}x</span>
         <button
-          class="flex h-7 w-7 items-center justify-center rounded-none text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
+          class="flex h-7 w-7 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
           @click="changeZoom(2)"
         >
           <ZoomIn class="h-3.5 w-3.5" />
@@ -208,16 +237,57 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div ref="containerRef" class="relative overflow-hidden rounded-lg border border-white/[0.06] bg-black/20 backdrop-blur-sm">
+    <div ref="containerRef" class="relative overflow-hidden rounded-lg border border-white/[0.08] bg-surface-base/20 backdrop-blur-sm">
       <canvas
         ref="canvasRef"
-        class="h-32 w-full cursor-crosshair"
-        @mousedown="onMouseDown"
-        @mousemove="onMouseMove"
-        @mouseup="onMouseUp"
-        @mouseleave="onMouseUp"
+        class="h-32 w-full touch-pan-y cursor-crosshair"
+        role="img"
+        :aria-label="t('wave.canvasLabel')"
+        aria-describedby="wave-hint"
+        @pointerdown="onPointerDown"
+        @pointermove="onPointerMove"
+        @pointerup="onPointerUp"
+        @pointercancel="onPointerUp"
         @wheel="onWheel"
       />
+    </div>
+
+    <div class="grid gap-3 rounded-[28px] border border-white/[0.08] bg-white/[0.03] p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <label class="flex flex-col gap-2 text-xs text-white/65">
+        <span>{{ t('wave.startTime', { time: formatTime(keyboardStart) }) }}</span>
+        <input
+          type="range"
+          min="0"
+          :max="Math.max(0, keyboardEnd - 0.1)"
+          step="0.1"
+          :value="keyboardStart"
+          :disabled="state.audioDuration < 0.1"
+          class="range-slider"
+          :aria-label="t('wave.startTime', { time: formatTime(keyboardStart) })"
+          @input="updateKeyboardStart"
+        />
+      </label>
+      <label class="flex flex-col gap-2 text-xs text-white/65">
+        <span>{{ t('wave.endTime', { time: formatTime(keyboardEnd) }) }}</span>
+        <input
+          type="range"
+          :min="Math.min(state.audioDuration, keyboardStart + 0.1)"
+          :max="state.audioDuration"
+          step="0.1"
+          :value="keyboardEnd"
+          :disabled="state.audioDuration < 0.1"
+          class="range-slider"
+          :aria-label="t('wave.endTime', { time: formatTime(keyboardEnd) })"
+          @input="updateKeyboardEnd"
+        />
+      </label>
+      <button
+        class="rounded-full border border-white/[0.12] bg-white/[0.05] px-4 py-2 text-xs font-medium text-white/75 transition-colors hover:bg-white/[0.10]"
+        :disabled="state.audioDuration < 0.1"
+        @click="addKeyboardSelection"
+      >
+        {{ t('wave.addSelection') }}
+      </button>
     </div>
 
     <div v-if="state.timeSelections.length > 0" class="flex flex-col gap-1.5">
@@ -226,13 +296,15 @@ onUnmounted(() => {
         :key="sel.id"
         class="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-1.5"
       >
-        <div class="h-2 w-2 rounded-full bg-[#4f8fff]" />
+        <div class="h-2 w-2 rounded-full bg-brand-blue" />
         <span class="font-mono text-xs text-white/60">
           {{ formatTime(sel.startTime) }} - {{ formatTime(sel.endTime) }}
         </span>
         <span class="text-xs text-white/45">({{ (sel.endTime - sel.startTime).toFixed(1) }}s)</span>
         <button
-          class="ml-auto flex h-5 w-5 items-center justify-center rounded-none text-white/20 transition-colors hover:bg-red-500/10 hover:text-red-400"
+          class="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-white/45 transition-colors hover:bg-semantic-error/10 hover:text-semantic-error"
+          :aria-label="t('wave.removeSelection', { start: formatTime(sel.startTime), end: formatTime(sel.endTime) })"
+          :title="t('wave.removeSelection', { start: formatTime(sel.startTime), end: formatTime(sel.endTime) })"
           @click="removeTimeSelection(sel.id)"
         >
           <Trash2 class="h-3 w-3" />
@@ -240,7 +312,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <p class="text-xs text-white/40">
+    <p id="wave-hint" class="text-xs text-white/55">
       {{ t('wave.hint') }}
     </p>
   </div>

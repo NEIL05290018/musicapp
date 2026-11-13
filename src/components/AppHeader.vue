@@ -16,7 +16,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
 <template>
   <header
     class="fixed top-0 left-0 right-0 z-50 transition-all duration-300"
-    :class="scrolled ? 'h-14 border-b border-white/[0.06] bg-[#0a0a0f]/80 backdrop-blur-xl' : 'h-16 bg-transparent'"
+    :class="scrolled ? 'h-14 border-b border-white/[0.08] bg-surface-elevated/80 backdrop-blur-xl' : 'h-16 bg-transparent'"
   >
     <div class="mx-auto flex h-full max-w-[1200px] items-center justify-between px-6">
       <div class="flex items-center gap-3">
@@ -26,7 +26,7 @@ onUnmounted(() => window.removeEventListener('scroll', onScroll))
         <span class="text-lg font-semibold tracking-tight text-white">AudioSift</span>
       </div>
       <div class="hidden items-center gap-4 sm:flex">
-        <span class="text-xs text-white/25">{{ t('header.tagline') }}</span>
+        <span class="text-xs text-ink-muted">{{ t('header.tagline') }}</span>
       </div>
     </div>
   </header>
