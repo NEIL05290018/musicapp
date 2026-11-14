@@ -237,7 +237,7 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <div ref="containerRef" class="relative overflow-hidden rounded-lg border border-white/[0.08] bg-surface-base/20 backdrop-blur-sm">
+    <div ref="containerRef" class="white-card relative overflow-hidden backdrop-blur-sm">
       <canvas
         ref="canvasRef"
         class="h-32 w-full touch-pan-y cursor-crosshair"
@@ -252,8 +252,8 @@ onUnmounted(() => {
       />
     </div>
 
-    <div class="grid gap-3 rounded-[28px] border border-white/[0.08] bg-white/[0.03] p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-      <label class="flex flex-col gap-2 text-xs text-white/65">
+    <div class="white-card grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+      <label class="flex flex-col gap-2 text-xs text-ink-black">
         <span>{{ t('wave.startTime', { time: formatTime(keyboardStart) }) }}</span>
         <input
           type="range"
@@ -267,7 +267,7 @@ onUnmounted(() => {
           @input="updateKeyboardStart"
         />
       </label>
-      <label class="flex flex-col gap-2 text-xs text-white/65">
+      <label class="flex flex-col gap-2 text-xs text-ink-black">
         <span>{{ t('wave.endTime', { time: formatTime(keyboardEnd) }) }}</span>
         <input
           type="range"
@@ -282,7 +282,7 @@ onUnmounted(() => {
         />
       </label>
       <button
-        class="rounded-full border border-white/[0.12] bg-white/[0.05] px-4 py-2 text-xs font-medium text-white/75 transition-colors hover:bg-white/[0.10]"
+        class="rounded-full border border-ink-black/15 bg-ink-black/[0.06] px-4 py-2 text-xs font-medium text-ink-black transition-colors hover:bg-ink-black/[0.10]"
         :disabled="state.audioDuration < 0.1"
         @click="addKeyboardSelection"
       >

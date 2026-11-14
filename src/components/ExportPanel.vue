@@ -30,7 +30,7 @@ function downloadSingle(stem: StemType) {
 <template>
   <div v-if="Object.keys(state.results).length > 0" class="glass-card flex flex-col gap-4 p-4">
     <div class="flex items-center gap-2">
-      <Download class="h-4 w-4 text-white/55" />
+      <Download class="h-4 w-4 text-ink-black/65" />
       <span class="text-xs font-semibold text-ink-secondary">{{ t('export.title') }}</span>
     </div>
 
@@ -39,8 +39,8 @@ function downloadSingle(stem: StemType) {
         <button
           v-for="fmt in (['wav', 'mp3'] as const)"
           :key="fmt"
-          class="rounded-full px-4 py-2 text-xs font-medium transition-all duration-200"
-          :class="state.exportFormat === fmt ? 'bg-white/[0.10] text-white shadow-sm' : 'text-white/45 hover:text-white/65'"
+          class="rounded-full px-4 py-2 text-xs font-medium text-ink-black transition-all duration-200"
+          :class="state.exportFormat === fmt ? 'bg-ink-black/[0.10] shadow-sm' : 'hover:bg-ink-black/[0.05]'"
           :aria-pressed="state.exportFormat === fmt"
           @click="setExportFormat(fmt)"
         >
@@ -61,7 +61,7 @@ function downloadSingle(stem: StemType) {
       <button
         v-for="stem in (Object.keys(state.results) as StemType[])"
         :key="stem"
-        class="flex items-center gap-1.5 rounded-full border border-white/[0.10] bg-white/[0.04] px-3 py-2 text-xs text-white/75 transition-colors hover:bg-white/[0.10] hover:text-white"
+        class="flex items-center gap-1.5 rounded-full border border-ink-black/15 bg-ink-black/[0.06] px-3 py-2 text-xs text-ink-black transition-colors hover:bg-ink-black/[0.10]"
         :aria-label="t('player.downloadStem', { stem: t('stem.' + stem) })"
         @click="downloadSingle(stem)"
       >

@@ -9,6 +9,10 @@
     box-sizing: border-box;
   }
 
+  *:not(button) {
+    border-radius: 0 !important;
+  }
+
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
     background: #08080c;
@@ -43,18 +47,38 @@
 }
 
 @layer components {
+  .green-card,
   .glass-card {
-    background: radial-gradient(ellipse at top, rgba(224, 64, 144, 0.06), transparent 58%), #121216;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 28px;
-    transition: background-color 200ms ease, border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+    @apply rounded-none border border-ink-black/15 bg-neon-green text-ink-black;
+    transition: border-color 200ms ease;
   }
 
+  .green-card:hover,
   .glass-card:hover {
-    border-color: rgba(224, 64, 144, 0.24);
-    background: radial-gradient(ellipse at top, rgba(224, 64, 144, 0.09), transparent 58%), #16161a;
-    box-shadow: 0 12px 32px rgba(224, 64, 144, 0.08);
-    transform: translateY(-4px);
+    @apply border-ink-black/25 bg-neon-green shadow-none;
+    transform: none;
+  }
+
+  .green-card :is(h1, h2, h3, h4, h5, h6, p, span, label, small, strong, em, li, time),
+  .glass-card :is(h1, h2, h3, h4, h5, h6, p, span, label, small, strong, em, li, time) {
+    @apply text-ink-black;
+  }
+
+  .green-card .green-card-media-copy {
+    @apply !text-ink-primary;
+  }
+
+  .green-card button span,
+  .glass-card button span {
+    color: inherit !important;
+  }
+
+  .white-card {
+    @apply rounded-none border border-ink-black/10 bg-white text-ink-black;
+  }
+
+  .white-card :is(h1, h2, h3, h4, h5, h6, p, span, label, small, strong, em, li, time) {
+    @apply text-ink-black;
   }
 
   .range-slider {

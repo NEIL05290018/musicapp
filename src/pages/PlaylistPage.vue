@@ -108,8 +108,8 @@ onUnmounted(() => {
         <div
           v-for="(song, idx) in songs"
           :key="song.id"
-          class="group flex cursor-pointer items-center gap-3 rounded-[28px] border border-transparent px-3 py-3 transition-all hover:bg-white/[0.04] hover:border-white/[0.08] sm:gap-4 sm:px-4"
-          :class="{ 'bg-white/[0.06] border-white/[0.08]': playingSong?.id === song.id }"
+          class="green-card group flex cursor-pointer items-center gap-3 px-3 py-3 transition-all sm:gap-4 sm:px-4"
+          :class="{ 'border-brand-pink/30': playingSong?.id === song.id }"
           role="button"
           tabindex="0"
           :aria-pressed="playingSong?.id === song.id && isPlaying"

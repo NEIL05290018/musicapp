@@ -67,8 +67,8 @@ onUnmounted(() => {
 
 <template>
   <div
-    class="flex flex-col gap-3 rounded-[28px] border p-4 transition-all duration-300 hover:-translate-y-1"
-    :style="{ backgroundColor: color.bg, border: `1px solid ${color.border}20` }"
+    class="white-card flex flex-col gap-3 p-4 transition-all duration-300 hover:-translate-y-1"
+    :style="{ border: `1px solid ${color.border}20` }"
   >
     <audio ref="audioRef" :src="audioSrc" @ended="onEnded" />
 
@@ -78,7 +78,7 @@ onUnmounted(() => {
       <span class="ml-auto text-xs text-ink-secondary tabular-nums">{{ duration.toFixed(1) }}s</span>
     </div>
 
-    <div class="h-8 rounded-lg bg-white/[0.03]">
+    <div class="h-8 bg-ink-black/[0.05]">
       <div
         class="h-full rounded-lg"
         :style="{ background: `repeating-linear-gradient(90deg, ${color.border}40 0px, ${color.border}40 1px, transparent 1px, transparent 3px)` }"

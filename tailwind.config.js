@@ -38,6 +38,7 @@ export default {
           primary: "#ffffff",
           secondary: "#b0b0b8",
           muted: "#86868b",
+          black: "#000000",
         },
         semantic: {
           success: "#34d399",

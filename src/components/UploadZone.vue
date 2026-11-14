@@ -96,7 +96,7 @@ function handleReset() {
         </p>
       </div>
       <button
-        class="rounded-full px-3 py-1.5 text-xs text-ink-secondary transition-colors hover:bg-white/[0.08] hover:text-white"
+        class="rounded-full px-3 py-1.5 text-xs text-ink-black transition-colors hover:bg-ink-black/[0.06] hover:text-ink-black"
         :aria-label="t('upload.replace')"
         @click="handleReset"
       >
@@ -112,7 +112,7 @@ function handleReset() {
       :aria-label="t('upload.dropHint') + t('upload.clickHere')"
       :aria-describedby="error ? 'upload-error' : 'upload-instructions'"
       :class="isDragging
-        ? 'border-brand-blue/40 bg-brand-blue/5'
+        ? 'border-brand-blue/40'
         : ''"
       @drop="onDrop"
       @dragover="onDragOver"
@@ -157,7 +157,7 @@ function handleReset() {
 
       <div v-if="error" id="upload-error" class="flex items-center gap-2 rounded-[28px] border border-semantic-error/20 bg-semantic-error/10 px-4 py-2" role="alert">
         <AlertCircle class="h-4 w-4 text-semantic-error" />
-        <span class="text-sm font-medium text-semantic-error">{{ error }}</span>
+        <span class="!text-semantic-error text-sm font-medium">{{ error }}</span>
       </div>
       <span v-else id="upload-instructions" class="sr-only">{{ t('upload.instructions') }}</span>
     </div>

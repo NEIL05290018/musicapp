@@ -402,7 +402,7 @@ watch(playingSong, (song) => {
     </div>
 
     <section v-if="isLoggedIn" class="mb-10">
-      <div class="rounded-[28px] border border-white/[0.08] bg-surface-card p-5 sm:p-6">
+      <div class="green-card p-5 sm:p-6">
         <div class="flex items-center gap-3 mb-5">
           <div class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-pink/15 text-brand-pink">
             <UserRound class="h-4 w-4 text-white" />
@@ -424,7 +424,7 @@ watch(playingSong, (song) => {
           <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
             <article
               v-for="(song, idx) in favoriteSongs" :key="'fav-' + song.id"
-              class="group w-[160px] shrink-0 rounded-[28px] border border-white/[0.08] bg-surface-card p-2.5 transition-all duration-300 hover:-translate-y-1 hover:bg-surface-card-hover"
+              class="white-card group w-[160px] shrink-0 p-2.5 transition-all duration-300 hover:-translate-y-1"
             >
               <div class="relative mb-2.5 aspect-square overflow-hidden rounded-lg">
                 <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
@@ -446,7 +446,7 @@ watch(playingSong, (song) => {
                   <Heart class="h-3.5 w-3.5" :class="auth.isSongFavorited(song.id) ? 'fill-brand-pink' : ''" />
                 </button>
               </div>
-              <button class="block max-w-full truncate text-left text-xs font-medium text-white/90 hover:text-brand-pink" @click="openSongDetail(song)">
+              <button class="block max-w-full truncate text-left text-xs font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
                 {{ song.title }}
               </button>
               <p class="mt-0.5 truncate text-[10px] text-ink-muted">{{ song.artist }}</p>
@@ -462,7 +462,7 @@ watch(playingSong, (song) => {
           <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
             <article
               v-for="(pl, idx) in favoritePlaylists" :key="'favpl-' + pl.id"
-              class="group w-[160px] shrink-0 rounded-[28px] border border-white/[0.08] bg-surface-card p-2.5 transition-all duration-300 hover:-translate-y-1 hover:bg-surface-card-hover"
+              class="white-card group w-[160px] shrink-0 p-2.5 transition-all duration-300 hover:-translate-y-1"
             >
               <div class="relative mb-2.5 aspect-square overflow-hidden rounded-lg">
                 <img :src="getCover(pl.coverIndex)" :alt="pl.name" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
@@ -483,7 +483,7 @@ watch(playingSong, (song) => {
                   <Heart class="h-3.5 w-3.5" :class="auth.isPlaylistFavorited(pl.id) ? 'fill-brand-sky' : ''" />
                 </button>
               </div>
-              <button class="block max-w-full truncate text-left text-xs font-medium text-white/90 hover:text-brand-sky" @click="openPlaylist(pl.id)">
+              <button class="block max-w-full truncate text-left text-xs font-medium text-ink-black hover:text-brand-sky" @click="openPlaylist(pl.id)">
                 {{ pl.name }}
               </button>
               <p class="mt-0.5 truncate text-[10px] text-ink-muted">{{ pl.description }}</p>
@@ -496,7 +496,7 @@ watch(playingSong, (song) => {
           <p class="text-sm text-white/75">{{ t('discover.noFavs') }}</p>
           <p class="mt-1 text-xs text-white/55">{{ t('discover.noFavsHint') }}</p>
         </div>
-        <p v-if="favoriteError" class="mt-4 text-sm text-semantic-error" role="alert">{{ favoriteError }}</p>
+        <p v-if="favoriteError" class="mt-4 border border-semantic-error/20 bg-semantic-error/10 p-3 text-sm !text-semantic-error" role="alert">{{ favoriteError }}</p>
       </div>
     </section>
 
@@ -505,19 +505,15 @@ watch(playingSong, (song) => {
         v-for="banner in banners"
         :key="banner.id"
         type="button"
-        class="group relative cursor-pointer overflow-hidden rounded-[28px] border bg-surface-card px-6 py-9 text-center transition-all duration-500 hover:-translate-y-1 hover:bg-surface-card-hover sm:px-8 sm:py-12"
+        class="green-card group relative cursor-pointer overflow-hidden rounded-[28px] px-6 py-9 text-center transition-all duration-500 hover:-translate-y-1 sm:px-8 sm:py-12"
         :style="{ borderColor: `${banner.color}3d` }"
-        @mouseenter="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}80`; el.style.boxShadow = `0 12px 32px ${banner.color}22` }"
-        @mouseleave="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}3d`; el.style.boxShadow = '' }"
+        @mouseenter="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}80` }"
+        @mouseleave="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}3d` }"
         @click="router.push(banner.path)"
       >
-        <div
-          class="pointer-events-none absolute -top-20 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full transition-opacity duration-500 opacity-80 group-hover:opacity-100"
-          :style="{ background: `radial-gradient(circle, ${banner.color}30 0%, transparent 70%)` }"
-        />
         <h2 class="relative text-xl font-semibold tracking-tight text-white sm:text-2xl">{{ t(banner.text) }}</h2>
         <p class="relative mt-2 text-sm text-ink-secondary">{{ t(banner.sub) }}</p>
-        <p class="relative mt-7 text-sm font-semibold" :style="{ color: banner.color }">
+        <p class="relative mt-7 text-sm font-semibold">
           {{ t('discover.learnMore') }}<span class="ml-1" aria-hidden="true">›</span>
         </p>
       </button>
@@ -537,12 +533,12 @@ watch(playingSong, (song) => {
       <div data-scroll="topScroll" class="flex snap-x snap-mandatory gap-4 overflow-x-auto scrollbar-hide pb-2">
         <article
           v-for="(song, idx) in topSongs" :key="song.id"
-          class="group w-[180px] shrink-0 snap-start rounded-[28px] border bg-surface-card p-3 transition-all duration-300 hover:-translate-y-1 hover:bg-surface-card-hover"
+          class="green-card group w-[180px] shrink-0 snap-start p-3 transition-all duration-300 hover:-translate-y-1"
           :style="{
             border: `1px solid rgba(${getGlassColor(idx).rgb},0.08)`,
           }"
-          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.25)`; el.style.boxShadow = `0 0 24px rgba(${c.rgb},0.15)`; el.style.backgroundColor = `rgba(${c.rgb},0.06)` }"
-          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.08)`; el.style.boxShadow = ''; el.style.backgroundColor = '' }"
+          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.25)`; el.style.boxShadow = `0 0 24px rgba(${c.rgb},0.15)` }"
+          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.08)`; el.style.boxShadow = '' }"
         >
           <div class="relative mb-3 aspect-square overflow-hidden rounded-lg">
             <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
@@ -565,7 +561,7 @@ watch(playingSong, (song) => {
               <Heart class="h-4 w-4" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
             </button>
           </div>
-          <button class="block max-w-full truncate text-left text-sm font-medium text-white/90 hover:text-brand-pink" @click="openSongDetail(song)">
+          <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
             {{ song.title }}
           </button>
           <p class="mt-0.5 truncate text-xs text-ink-secondary">{{ song.artist }}</p>
@@ -583,13 +579,12 @@ watch(playingSong, (song) => {
       <div class="space-y-1">
         <article
           v-for="(song, idx) in newSongs" :key="song.id"
-          class="group flex items-center gap-3 rounded-[28px] border px-3 py-3 transition-all hover:bg-surface-card sm:gap-4 sm:px-4"
+          class="green-card group flex items-center gap-3 px-3 py-3 transition-all sm:gap-4 sm:px-4"
           :style="{
             borderColor: `rgba(${getGlassColor(idx).rgb},0.04)`,
-            backgroundColor: playingSong?.id === song.id ? `rgba(${getGlassColor(idx).rgb},0.08)` : 'transparent'
           }"
-          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.12)`; el.style.backgroundColor = playingSong?.id === song.id ? `rgba(${c.rgb},0.12)` : `rgba(${c.rgb},0.04)` }"
-          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.04)`; el.style.backgroundColor = playingSong?.id === song.id ? `rgba(${c.rgb},0.08)` : '' }"
+          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.12)` }"
+          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.04)` }"
         >
           <button
             class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/[0.08] hover:text-brand-pink"
@@ -603,7 +598,7 @@ watch(playingSong, (song) => {
             <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover" />
           </div>
           <div class="flex-1 min-w-0">
-            <button class="block max-w-full truncate text-left text-sm font-medium text-white/90 hover:text-brand-pink" @click="openSongDetail(song)">
+            <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
               {{ song.title }}
             </button>
             <p class="truncate text-xs text-ink-secondary">{{ song.artist }} · {{ song.album }}</p>
@@ -631,7 +626,7 @@ watch(playingSong, (song) => {
       <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
         <article
           v-for="(pl, idx) in playlists" :key="pl.id"
-          class="group rounded-[28px] border bg-surface-card p-3 transition-all duration-300 hover:-translate-y-1 hover:bg-surface-card-hover"
+          class="green-card group p-3 transition-all duration-300 hover:-translate-y-1"
           :style="{ border: `1px solid rgba(${getGlassColor(idx).rgb},0.06)` }"
           @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.2)`; el.style.boxShadow = `0 0 20px rgba(${c.rgb},0.1)` }"
           @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.06)`; el.style.boxShadow = '' }"
@@ -656,7 +651,7 @@ watch(playingSong, (song) => {
               <Heart class="h-4 w-4" :class="auth.isPlaylistFavorited(pl.id) ? 'fill-[#5b9cff]' : ''" />
             </button>
           </div>
-          <button class="block max-w-full truncate text-left text-sm font-medium text-white/90 hover:text-brand-sky" @click="openPlaylist(pl.id)">
+          <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-sky" @click="openPlaylist(pl.id)">
             {{ pl.name }}
           </button>
           <p class="mt-0.5 truncate text-xs text-ink-muted">{{ pl.description }}</p>
@@ -690,13 +685,12 @@ watch(playingSong, (song) => {
       <div class="space-y-0.5 max-h-[400px] overflow-y-auto pr-1">
         <article
           v-for="(song, idx) in filteredSongs" :key="song.id"
-          class="group flex items-center gap-2 rounded-[28px] border px-3 py-3 transition-all hover:bg-surface-card focus-within:border-brand-pink/30 sm:gap-4 sm:px-4"
+          class="green-card group flex items-center gap-2 px-3 py-3 transition-all focus-within:border-brand-pink/30 sm:gap-4 sm:px-4"
           :style="{
             borderColor: `rgba(${getGlassColor(idx).rgb},0.03)`,
-            backgroundColor: playingSong?.id === song.id ? `rgba(${getGlassColor(idx).rgb},0.08)` : 'transparent'
           }"
-          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.10)`; el.style.backgroundColor = playingSong?.id === song.id ? `rgba(${c.rgb},0.10)` : `rgba(${c.rgb},0.03)` }"
-          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.03)`; el.style.backgroundColor = playingSong?.id === song.id ? `rgba(${c.rgb},0.08)` : '' }"
+          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.10)` }"
+          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.03)` }"
         >
           <button
             class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/[0.08] hover:text-brand-pink"
@@ -710,7 +704,7 @@ watch(playingSong, (song) => {
             <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
           </div>
           <div class="flex-1 min-w-0">
-            <button class="block max-w-full truncate text-left text-sm font-medium text-white/90 hover:text-brand-pink" @click="openSongDetail(song)">
+            <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
               {{ song.title }}
             </button>
             <p class="truncate text-xs text-ink-secondary">{{ song.artist }} · {{ song.album }}</p>

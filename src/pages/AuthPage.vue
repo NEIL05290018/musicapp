@@ -68,7 +68,7 @@ function goBack() {
         <span>{{ t('auth.back') }}</span>
       </button>
 
-      <div class="rounded-[28px] border border-white/[0.08] bg-surface-modal p-6 sm:p-8">
+      <div class="green-card p-6 sm:p-8">
         <div class="mb-8 text-center">
           <div class="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-brand-pink">
             <Music2 class="h-7 w-7 text-white" />
@@ -172,34 +172,34 @@ function goBack() {
           <div class="grid grid-cols-2 gap-2">
             <button
               type="button"
-              class="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/65 transition-all hover:bg-white/[0.06] hover:text-white"
+              class="white-card rounded-2xl px-3 py-2 text-left text-xs text-ink-black transition-all"
               @click="email = 'test@alice.com'; password = 'password123'"
             >
-              <span class="font-medium text-white/90">Alice</span>
+              <span class="font-medium text-ink-black">Alice</span>
               <span class="block text-ink-secondary">test@alice.com</span>
             </button>
             <button
               type="button"
-              class="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/65 transition-all hover:bg-white/[0.06] hover:text-white"
+              class="white-card rounded-2xl px-3 py-2 text-left text-xs text-ink-black transition-all"
               @click="email = 'test@bob.com'; password = 'password123'"
             >
-              <span class="font-medium text-white/90">Bob</span>
+              <span class="font-medium text-ink-black">Bob</span>
               <span class="block text-ink-secondary">test@bob.com</span>
             </button>
             <button
               type="button"
-              class="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/65 transition-all hover:bg-white/[0.06] hover:text-white"
+              class="white-card rounded-2xl px-3 py-2 text-left text-xs text-ink-black transition-all"
               @click="email = 'test@carol.com'; password = 'password123'"
             >
-              <span class="font-medium text-white/90">Carol</span>
+              <span class="font-medium text-ink-black">Carol</span>
               <span class="block text-ink-secondary">test@carol.com</span>
             </button>
             <button
               type="button"
-              class="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-left text-xs text-white/65 transition-all hover:bg-white/[0.06] hover:text-white"
+              class="white-card rounded-2xl px-3 py-2 text-left text-xs text-ink-black transition-all"
               @click="email = 'admin@audiosift.com'; password = 'admin123'"
             >
-              <span class="font-medium text-white/90">Admin</span>
+              <span class="font-medium text-ink-black">Admin</span>
               <span class="block text-ink-secondary">admin@audiosift.com</span>
             </button>
           </div>

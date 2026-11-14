@@ -64,7 +64,7 @@ function onPlayClick(song: Song) {
     >
       <div class="fixed inset-0 bg-surface-base/80 backdrop-blur-md" @click="emit('close')" />
 
-      <div class="relative z-10 flex max-h-[85vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[28px] border border-white/[0.12] bg-surface-modal">
+      <div class="green-card relative z-10 flex max-h-[85vh] w-full max-w-[560px] flex-col overflow-hidden">
         <button
           class="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-surface-base/90 text-white/75 transition-colors hover:bg-surface-base hover:text-white"
           :aria-label="t('modal.close')"
@@ -82,8 +82,8 @@ function onPlayClick(song: Song) {
             class="h-56 w-full object-cover"
           />
           <div class="absolute bottom-0 left-0 right-0 z-20 p-6">
-            <h2 id="song-detail-title" class="text-2xl font-bold text-white">{{ song.title }}</h2>
-            <p class="mt-1 text-sm text-white/70">{{ song.artist }} · {{ song.album }}</p>
+            <h2 id="song-detail-title" class="green-card-media-copy text-2xl font-bold text-white">{{ song.title }}</h2>
+            <p class="green-card-media-copy mt-1 text-sm text-white/70">{{ song.artist }} · {{ song.album }}</p>
           </div>
         </div>
 
@@ -102,13 +102,13 @@ function onPlayClick(song: Song) {
           </div>
 
           <div v-else-if="lyrics.length > 0" class="space-y-2">
-            <div
+            <p
               v-for="(line, i) in lyrics"
               :key="i"
-              class="rounded-[28px] px-3 py-2 text-sm text-white/75 transition-colors hover:bg-white/[0.04] hover:text-white"
+              class="rounded-[28px] px-3 py-2 text-sm text-ink-black transition-colors hover:bg-white/[0.04] hover:text-ink-black"
             >
               {{ line.text }}
-            </div>
+            </p>
           </div>
 
           <div v-else class="flex flex-col items-center justify-center py-8 text-center">
@@ -128,17 +128,17 @@ function onPlayClick(song: Song) {
               v-for="s in similarSongs"
               :key="s.id"
               type="button"
-              class="group flex min-w-0 items-center gap-3 rounded-[28px] border border-white/[0.08] p-2 text-left transition-all duration-200 hover:bg-white/[0.05] hover:border-white/[0.12]"
+              class="white-card group flex min-w-0 items-center gap-3 rounded-[28px] p-2 text-left transition-all duration-200"
               @click="onPlayClick(s)"
             >
               <div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
                 <img :src="getCover(s.coverIndex)" :alt="s.album" class="h-full w-full object-cover" />
               </div>
               <div class="min-w-0 flex-1">
-                <p class="truncate text-xs font-medium text-white/90">{{ s.title }}</p>
-                <p class="truncate text-[11px] text-white/65">{{ s.artist }}</p>
+                <p class="truncate text-xs font-medium text-ink-black">{{ s.title }}</p>
+                <p class="truncate text-[11px] text-ink-black">{{ s.artist }}</p>
               </div>
-              <Play class="h-3.5 w-3.5 text-white/30 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+              <Play class="h-3.5 w-3.5 text-ink-black/40 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
             </button>
           </div>
         </div>
