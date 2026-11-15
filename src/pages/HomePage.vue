@@ -7,6 +7,7 @@ import TrackCard from '@/components/TrackCard.vue'
 import ExportPanel from '@/components/ExportPanel.vue'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { STEM_COLORS } from '@/composables/useAudioUtils'
+import { t, stemLabel } from '@/i18n'
 import type { StemType } from '@/composables/useAudioStore'
 
 const { state } = useAudioStore()
@@ -23,11 +24,11 @@ const features = [
     <section class="mb-8 pt-10 text-center">
       <div class="mb-5 inline-flex items-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.06] px-4 py-1.5 backdrop-blur-md">
         <Sparkles class="h-3.5 w-3.5 text-[#e04090]" />
-        <span class="text-xs text-white/70">Demucs AI · Hybrid Transformer v4 · GPU 加速推理</span>
+        <span class="text-xs text-white/70">{{ t('home.badge') }}</span>
       </div>
-      <h1 class="mb-3 text-3xl font-bold tracking-tight text-white/95">智能音频分离</h1>
-      <p class="mx-auto max-w-lg text-sm leading-relaxed text-white/55">
-        上传音乐文件，选择分离时段，AI 模型将精准提取人声、配乐与音效三条独立音轨
+      <h1 class="mb-3 text-3xl font-bold tracking-tight text-white/95">{{ t('home.title') }}</h1>
+      <p class="mx-auto max-w-lg text-sm leading-relaxed text-ink-secondary">
+        {{ t('home.subtitle') }}
       </p>
 
       <div class="mt-5 flex items-center justify-center gap-6">
@@ -37,12 +38,12 @@ const features = [
           class="flex items-center gap-2"
         >
           <div
-            class="flex h-7 w-7 items-center justify-center rounded-lg"
+            class="flex h-7 w-7 items-center justify-center rounded-full"
             :style="{ backgroundColor: `${STEM_COLORS[f.key].border}28`, color: STEM_COLORS[f.key].border }"
           >
             <component :is="f.icon" class="h-4 w-4" />
           </div>
-          <span class="text-sm font-medium text-white/65">{{ STEM_COLORS[f.key].label }}</span>
+          <span class="text-sm font-medium text-white/65">{{ stemLabel(f.key) }}</span>
         </div>
       </div>
     </section>
@@ -54,8 +55,8 @@ const features = [
 
       <SeparationPanel v-if="state.audioBuffer" />
 
-      <div v-if="Object.keys(state.results).length > 0" class="flex flex-col gap-3 rounded-2xl border border-white/[0.10] bg-white/[0.05] p-5 backdrop-blur-xl">
-        <span class="text-xs font-semibold text-white/60">分离结果</span>
+      <div v-if="Object.keys(state.results).length > 0" class="glass-card flex flex-col gap-3 p-5" aria-live="polite">
+        <span class="text-xs font-semibold text-white/60">{{ t('home.results') }}</span>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
           <TrackCard
             v-for="stem in (Object.keys(state.results) as StemType[])"

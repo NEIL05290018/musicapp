@@ -44,12 +44,16 @@ function animate() {
   animationFrame = requestAnimationFrame(animate)
 }
 
-onMounted(() => { animate() })
+onMounted(() => {
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    animate()
+  }
+})
 onUnmounted(() => { cancelAnimationFrame(animationFrame) })
 </script>
 
 <template>
-  <div class="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+  <div class="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden md:block">
     <div
       class="absolute flex flex-wrap"
       :style="{
@@ -75,5 +79,5 @@ onUnmounted(() => { cancelAnimationFrame(animationFrame) })
       />
     </div>
   </div>
-  <div class="pointer-events-none fixed inset-0 z-[1] backdrop-blur-[6px]" />
+  <div class="pointer-events-none fixed inset-0 z-[1] bg-surface-base/85 backdrop-blur-md" />
 </template>
