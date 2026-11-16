@@ -1,4 +1,8 @@
 export interface Song {
+  localKey?: string
+  audioSrc?: string
+  audioUrl?: string
+  coverUrl?: string
   id: string
   title: string
   artist: string

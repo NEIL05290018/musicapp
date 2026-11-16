@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { Music2, Mail, Lock, User, Loader2, ArrowLeft } from 'lucide-vue-next'
 import { useAuthStore } from '@/composables/useAuthStore'
 import { t } from '@/i18n'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const isRegister = ref(false)
@@ -42,7 +43,7 @@ async function submit() {
     } else {
       await auth.login(email.value.trim(), password.value)
     }
-    router.push('/discover')
+    router.push(route.query.next === '/profile' ? '/profile' : '/discover')
   } catch (e) {
     errorMsg.value = e instanceof Error ? e.message : t('auth.failed')
   } finally {

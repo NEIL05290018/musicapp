@@ -1,83 +1,71 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 
-const cols = 9
-const rows = 7
-const gap = 24
-const cardSize = 200
-
-const gridStyle = ref<Record<string, string>>({})
-
-let animationFrame = 0
-const offset = { x: 0, y: 0 }
-const speed = 0.55
-
-function getCoverUrl(index: number): string {
-  return `/albums/album-${((index - 1) % 30) + 1}.jpg`
+const route = useRoute()
+const tileWidth = 1344
+const tileHeight = 1120
+const texture = ref('')
+let disposed = false
+async function createTexture() {
+  const covers = await Promise.all(Array.from({ length: 30 }, (_, i) => new Promise<HTMLImageElement | null>(resolve => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => resolve(null)
+    image.src = '/albums/album-' + (i + 1) + '.jpg'
+  })))
+  if (disposed) return
+  const canvas = document.createElement('canvas')
+  canvas.width = tileWidth
+  canvas.height = tileHeight
+  const context = canvas.getContext('2d')
+  if (!context) return
+  covers.forEach((image, index) => {
+    if (!image) return
+    const x = (index % 6) * 224
+    const y = Math.floor(index / 6) * 224
+    const side = Math.min(image.naturalWidth, image.naturalHeight)
+    context.save()
+    context.beginPath()
+    context.roundRect(x, y, 200, 200, 12)
+    context.clip()
+    context.drawImage(image, (image.naturalWidth - side) / 2, (image.naturalHeight - side) / 2, side, side, x, y, 200, 200)
+    context.restore()
+  })
+  texture.value = canvas.toDataURL('image/webp', .9)
 }
-
-const grid: { row: number; col: number; index: number }[] = []
-for (let r = 0; r < rows; r++) {
-  for (let c = 0; c < cols; c++) {
-    grid.push({ row: r, col: c, index: r * cols + c + 1 })
-  }
-}
-
-const stepX = cardSize + gap
-const stepY = cardSize + gap
-const totalWidth = cols * stepX
-const totalHeight = rows * stepY
-
-function animate() {
-  offset.x += speed * 0.5
-  offset.y += speed * 0.35
-  if (offset.x >= stepX) offset.x -= stepX
-  if (offset.x <= -stepX) offset.x += stepX
-  if (offset.y >= stepY) offset.y -= stepY
-  if (offset.y <= -stepY) offset.y += stepY
-
-  gridStyle.value = {
-    '--ox': `${-offset.x}px`,
-    '--oy': `${-offset.y}px`,
-  }
-
-  animationFrame = requestAnimationFrame(animate)
-}
-
-onMounted(() => {
-  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    animate()
-  }
-})
-onUnmounted(() => { cancelAnimationFrame(animationFrame) })
+onMounted(createTexture)
+onUnmounted(() => { disposed = true })
 </script>
 
 <template>
-  <div class="pointer-events-none fixed inset-0 z-0 hidden overflow-hidden md:block">
-    <div
-      class="absolute flex flex-wrap"
-      :style="{
-        left: '-10%',
-        top: '-10%',
-        width: '120vw',
-        height: '120vh',
-        transform: `translate(var(--ox), var(--oy))`,
-        ...gridStyle,
-      }"
-    >
-      <div
-        v-for="item in grid"
-        :key="`${item.row}-${item.col}`"
-        class="shrink-0 rounded-xl bg-cover bg-center"
-        :style="{
-          width: cardSize + 'px',
-          height: cardSize + 'px',
-          marginRight: item.col < cols - 1 ? gap + 'px' : '0',
-          marginBottom: item.row < rows - 1 ? gap + 'px' : '0',
-          backgroundImage: `url(${getCoverUrl(item.index)})`,
-        }"
-      />
-    </div>
+  <div class="album-wall pointer-events-none fixed inset-0 z-0 hidden overflow-hidden md:block" aria-hidden="true">
+    <div v-if="texture" class="album-wall-tiles" :style="{ backgroundImage: 'url(' + texture + ')' }" />
   </div>
-  <div class="pointer-events-none fixed inset-0 z-[1] bg-surface-base/85 backdrop-blur-md" />
+  <div class="album-wall-shade pointer-events-none fixed inset-0 z-[1]" :class="{ 'album-wall-shade-workbench': route.path === '/' }" aria-hidden="true" />
 </template>
+
+<style scoped>
+.album-wall-tiles {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: calc(100% + 1344px);
+  height: calc(100% + 1120px);
+  background-repeat: repeat;
+  background-size: 1344px 1120px;
+  will-change: transform;
+  animation: album-wall-drift 48s linear infinite;
+}
+.album-wall-shade { background: rgba(8, 8, 12, .85); backdrop-filter: blur(12px); }
+.album-wall-shade-workbench { background: rgba(8, 8, 12, .50); backdrop-filter: blur(2px); }
+@keyframes album-wall-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-1344px, -1120px, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .album-wall-tiles { animation: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .album-wall-shade { background: rgba(8, 8, 12, .92); backdrop-filter: none; }
+}
+</style>
