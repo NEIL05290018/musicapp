@@ -1,124 +1,31 @@
 <script setup lang="ts">
-import { ref, computed, onUnmounted } from 'vue'
-import { Play, Pause, Volume2, Download } from 'lucide-vue-next'
-import { useAudioStore } from '@/composables/useAudioStore'
-import { STEM_COLORS, getDownloadUrl } from '@/composables/useAudioUtils'
+import { playback, selectTrack } from '@/composables/useWorkspacePlayback'
+import { ref } from 'vue'
 import { t } from '@/i18n'
+import { downloadAudio } from '@/composables/usePersonalLibrary'
+import { getDownloadUrl } from '@/composables/useAudioUtils'
+import { useAudioStore } from '@/composables/useAudioStore'
 import type { StemType } from '@/composables/useAudioStore'
-
-const props = defineProps<{
-  stemType: StemType
-  stemUrl: string
-  duration: number
-}>()
-
-const { state, setPlayingTrack } = useAudioStore()
-
-const color = STEM_COLORS[props.stemType]
-const isPlaying = ref(false)
-const audioRef = ref<HTMLAudioElement>()
-
-const audioSrc = computed(() => getDownloadUrl(props.stemType, state.taskId || '', 'wav'))
-
-const stemName = computed(() => t(`stem.${props.stemType}`))
-
-function togglePlay() {
-  if (!audioRef.value) return
-
-  if (isPlaying.value) {
-    audioRef.value.pause()
-    isPlaying.value = false
-    setPlayingTrack(null)
-  } else {
-    audioRef.value.volume = state.volumes[props.stemType]
-    audioRef.value.play()
-    isPlaying.value = true
-    setPlayingTrack(props.stemType)
-  }
+const props = defineProps<{ stemType: StemType; stemUrl: string; duration: number }>()
+const { state } = useAudioStore()
+const downloadError = ref(false)
+async function download() {
+  try {
+    downloadError.value = false
+    const key = state.results[props.stemType]?.localKey
+    if (key && state.exportFormat === 'wav') await downloadAudio(key, props.stemType + '.wav')
+    else window.location.href = getDownloadUrl(props.stemType, state.taskId || '', state.exportFormat)
+  } catch { downloadError.value = true }
 }
-
-function onEnded() {
-  isPlaying.value = false
-  setPlayingTrack(null)
-}
-
-function onVolumeChange(e: Event) {
-  const target = e.target as HTMLInputElement
-  if (audioRef.value) {
-    audioRef.value.volume = parseFloat(target.value)
-  }
-}
-
-function handleDownload() {
-  const url = getDownloadUrl(props.stemType, state.taskId || '', state.exportFormat)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `AudioSift_${stemName.value}.${state.exportFormat}`
-  a.click()
-}
-
-onUnmounted(() => {
-  if (audioRef.value) {
-    audioRef.value.pause()
-    audioRef.value.src = ''
-  }
-})
 </script>
-
 <template>
-  <div
-    class="white-card flex flex-col gap-3 p-4 transition-all duration-300 hover:-translate-y-1"
-    :style="{ border: `1px solid ${color.border}20` }"
-  >
-    <audio ref="audioRef" :src="audioSrc" @ended="onEnded" />
-
-    <div class="flex items-center gap-2">
-      <div class="h-2.5 w-2.5 rounded-full" :style="{ backgroundColor: color.border }" />
-      <span class="text-sm font-medium text-white">{{ stemName }}</span>
-      <span class="ml-auto text-xs text-ink-secondary tabular-nums">{{ duration.toFixed(1) }}s</span>
-    </div>
-
-    <div class="h-8 bg-ink-black/[0.05]">
-      <div
-        class="h-full rounded-lg"
-        :style="{ background: `repeating-linear-gradient(90deg, ${color.border}40 0px, ${color.border}40 1px, transparent 1px, transparent 3px)` }"
-      />
-    </div>
-
-    <div class="flex items-center gap-2">
-      <button
-        class="flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 hover:scale-110"
-        :style="{ backgroundColor: isPlaying ? '#e04090' : `${color.border}20`, color: isPlaying ? 'white' : color.border }"
-        :aria-label="isPlaying ? t('player.pauseStem', { stem: stemName }) : t('player.playStem', { stem: stemName })"
-        :title="isPlaying ? t('player.pause') : t('player.play')"
-        @click="togglePlay"
-      >
-        <Pause v-if="isPlaying" class="h-4 w-4" />
-        <Play v-else class="h-4 w-4" />
-      </button>
-
-      <div class="flex flex-1 items-center gap-2">
-        <Volume2 class="h-3.5 w-3.5 text-ink-muted" aria-hidden="true" />
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.01"
-          :value="state.volumes[stemType]"
-          class="range-slider flex-1"
-          :aria-label="t('player.volume', { stem: stemName })"
-          @input="onVolumeChange"
-        />
-      </div>
-
-      <button
-        class="flex h-9 w-9 items-center justify-center rounded-full text-ink-muted transition-colors hover:bg-white/[0.08] hover:text-white"
-        :aria-label="t('player.downloadStem', { stem: stemName })"
-        :title="t('export.download')"
-        @click="handleDownload"
-      >
-        <Download class="h-3.5 w-3.5" />
-      </button>
-    </div>
+  <div class="white-card p-4 space-y-3" :class="{ 'active-track': playback.track === stemType }">
+    <div class="flex justify-between gap-2"><h3 class="font-semibold">{{ t('stem.' + stemType) }}</h3><span class="text-sm">{{ duration.toFixed(1) }} s</span></div>
+    <p class="text-sm">{{ t('work.' + stemType) }}</p>
+    <button class="workspace-button w-full" :aria-pressed="playback.track === stemType" @click="selectTrack(stemType)">
+      {{ playback.track === stemType ? t('p0.selected') : t('p0.selectTrack', { track: t('stem.' + stemType) }) }}
+    </button>
+    <button class="block text-sm underline" @click="download">{{ t('player.downloadStem', { stem: t('stem.' + stemType) }) }}</button>
+    <p v-if="downloadError" role="alert">{{ t('personal.storageError') }}</p>
   </div>
 </template>

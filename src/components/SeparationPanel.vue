@@ -1,83 +1,27 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { Play, Square, Sparkles, Loader2 } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Play, Sparkles, Loader2 } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
-import { STEM_COLORS, uploadAndSeparate, pollStatus } from '@/composables/useAudioUtils'
+import { separate, retrySeparation } from '@/composables/useSeparationTask'
+import { STEM_COLORS, formatTime } from '@/composables/useAudioUtils'
+import { libraryFeedback, archiveMaterial, libraryOwner, library } from '@/composables/usePersonalLibrary'
+import { useRouter } from 'vue-router'
 import { t } from '@/i18n'
 import type { StemType } from '@/composables/useAudioStore'
-
-const { state, toggleStem, setSeparationStatus, setSeparationProgress, setSeparationError, setTaskId, setResults } = useAudioStore()
-
-const STEMS = computed<{ key: StemType; label: string }[]>(() => [
-  { key: 'vocals', label: t('stem.vocals') },
-  { key: 'music', label: t('stem.music') },
-  { key: 'sfx', label: t('stem.sfx') },
-])
-
+const router = useRouter()
+async function saveMaterial() {
+  if (!state.audioFile || !state.taskId || !state.resultRange) return
+  try { await archiveMaterial(libraryOwner.value, state.taskId, state.audioFile, state.resultRange, state.results); libraryFeedback.error = '' }
+  catch { libraryFeedback.error = 'personal.archiveError' }
+}
+const { state, toggleStem } = useAudioStore()
+const STEMS = computed(() => (['vocals', 'music', 'sfx'] as StemType[]).map(key => ({ key, label: t('stem.' + key) })))
 const canSeparate = () => state.audioBuffer && state.activeStems.length > 0
 const isRunning = () => state.separationStatus === 'processing' || state.separationStatus === 'uploading'
-
-let pollTimer: ReturnType<typeof setInterval> | null = null
-
-function startPolling(taskId: string) {
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await pollStatus(taskId)
-      setSeparationProgress(res.progress)
-
-      if (res.status === 'done' && res.stems) {
-        setResults(res.stems)
-        setSeparationStatus('done')
-        setSeparationProgress(100)
-        clearPolling()
-      } else if (res.status === 'error') {
-        setSeparationError(res.error || t('sep.failed'))
-        setSeparationStatus('error')
-        clearPolling()
-      } else if (res.status === 'processing') {
-        setSeparationStatus('processing')
-      }
-    } catch (err) {
-      setSeparationError(err instanceof Error ? err.message : t('sep.pollFailed'))
-      setSeparationStatus('error')
-      clearPolling()
-    }
-  }, 2000)
-}
-
-function clearPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
-}
-
-async function handleSeparate() {
-  if (!canSeparate() || !state.audioFile) return
-
-  setSeparationStatus('uploading')
-  setSeparationProgress(0)
-  setSeparationError(null)
-
-  try {
-    const startTime = state.timeSelections.length > 0 ? state.timeSelections[0].startTime : 0
-    const endTime = state.timeSelections.length > 0 ? state.timeSelections[0].endTime : -1
-
-    const res = await uploadAndSeparate(state.audioFile, startTime, endTime, state.activeStems)
-    setTaskId(res.task_id)
-    setSeparationStatus('processing')
-    setSeparationProgress(10)
-    startPolling(res.task_id)
-  } catch (err) {
-    setSeparationError(err instanceof Error ? err.message : t('sep.requestFailed'))
-    setSeparationStatus('error')
-  }
-}
-
-function handleStop() {
-  clearPolling()
-  setSeparationStatus('idle')
-  setSeparationProgress(0)
+const submitted = computed(() => state.submission && state.separationStatus !== 'idle')
+const displayRange = computed(() => submitted.value ? state.submission!.range : state.timeSelections[0])
+function goToPlayer() {
+  document.getElementById('workspace-player')?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
 }
 </script>
 
@@ -89,6 +33,12 @@ function handleStop() {
       <span class="ml-auto rounded-full bg-[#e04090]/15 px-2 py-0.5 text-xs font-medium text-[#e04090]">Demucs v4</span>
     </div>
 
+    <div class="space-y-1 text-sm" data-testid="task-summary">
+      <p>{{ submitted ? state.submission?.fileName : state.audioFile?.name }}</p>
+      <p>{{ submitted ? t('p0.submittedRange') : t('work.submitRange') }} {{ formatTime(displayRange?.startTime ?? 0) }} – {{ formatTime(displayRange?.endTime ?? state.audioDuration) }}</p>
+      <p v-if="submitted">{{ state.submission?.stems.map(stem => t('stem.' + stem)).join(' · ') }}</p>
+    </div>
+    <p v-if="isRunning()" class="text-sm">{{ t('p0.processingHint') }}</p>
     <div class="flex gap-2">
       <button
         v-for="stem in STEMS"
@@ -100,7 +50,7 @@ function handleStop() {
           backgroundColor: state.activeStems.includes(stem.key) ? STEM_COLORS[stem.key].bg : 'rgba(255,255,255,0.02)',
           border: `1px solid ${state.activeStems.includes(stem.key) ? STEM_COLORS[stem.key].border : 'rgba(255,255,255,0.06)'}`,
         }"
-        @click="toggleStem(stem.key)"
+        :disabled="isRunning()" @click="toggleStem(stem.key)"
       >
         <div class="h-2 w-2 rounded-full" :style="{ backgroundColor: STEM_COLORS[stem.key].border }" />
         {{ stem.label }}
@@ -114,7 +64,7 @@ function handleStop() {
           ? 'bg-brand-pink text-white hover:bg-brand-pink-hover active:bg-brand-pink-active'
           : 'cursor-not-allowed bg-brand-pink text-white opacity-50'"
         :disabled="!canSeparate() || isRunning()"
-        @click="handleSeparate"
+        @click="separate()"
       >
         <Loader2 v-if="isRunning()" class="h-4 w-4 animate-spin" />
         <Play v-else class="h-4 w-4" />
@@ -123,15 +73,7 @@ function handleStop() {
         <template v-else>{{ t('sep.start') }}</template>
       </button>
 
-      <button
-        v-if="isRunning()"
-        class="flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.10] text-white/50 transition-colors hover:bg-white/[0.08] hover:text-white/80"
-        :aria-label="t('sep.stop')"
-        :title="t('sep.stop')"
-        @click="handleStop"
-      >
-        <Square class="h-4 w-4" />
-      </button>
+
     </div>
 
     <div
@@ -159,12 +101,19 @@ function handleStop() {
       </div>
     </div>
 
+    <div v-if="state.separationStatus === 'done'" class="flex flex-wrap items-center justify-between gap-3" role="status">
+      <p>{{ t('p0.complete') }}</p><button v-if="!library.assets.some(asset => asset.id === state.taskId)" class="workspace-button" :disabled="libraryFeedback.saving > 0" @click="saveMaterial">{{ t('personal.saveMaterials') }}</button><button class="workspace-button" @click="router.push('/profile')">{{ t('personal.openMaterials') }}</button><button class="workspace-button" @click="goToPlayer">{{ t('p0.listenResults') }}</button>
+    </div>
+    <p v-if="libraryFeedback.saving" class="text-sm" role="status">{{ t('personal.savingAudio') }}</p>
+    <div v-if="libraryFeedback.error" class="text-sm" role="alert">{{ t(libraryFeedback.error) }} <button class="underline" @click="saveMaterial">{{ t('work.retry') }}</button></div>
     <div
       v-if="state.separationStatus === 'error' && state.separationError"
       class="rounded-[28px] border border-semantic-error/20 bg-semantic-error/10 px-4 py-3 text-sm font-medium text-semantic-error"
       role="alert"
     >
-      {{ state.separationError }}
+      <p>{{ t('p0.failure.' + state.separationFailure) }}</p>
+      <details v-if="state.separationError" class="mt-2 text-xs"><summary>{{ t('p0.details') }}</summary>{{ state.separationError }}</details>
+      <button class="workspace-button mt-3" @click="retrySeparation()">{{ state.separationFailure === 'status' ? t('p0.resume') : t('p0.retryTask') }}</button>
     </div>
   </div>
 </template>

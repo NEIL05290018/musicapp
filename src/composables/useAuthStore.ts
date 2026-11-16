@@ -61,22 +61,25 @@ export function useAuthStore() {
     state.token = saved
     try {
       const data = await apiFetch('/user/me')
+      if (state.token !== saved) return false
       state.user = data.user
       await loadFavorites()
       return true
     } catch {
-      clearAuth()
+      if (state.token === saved) clearAuth()
       return false
     }
   }
 
   async function loadFavorites() {
     if (!state.token) return
+    const token = state.token
     try {
       const [songs, playlists] = await Promise.all([
         apiFetch('/user/favorites/songs'),
         apiFetch('/user/favorites/playlists'),
       ])
+      if (token !== state.token) return
       state.favoriteSongIds = songs.song_ids || []
       state.favoritePlaylistIds = playlists.playlist_ids || []
     } catch {
@@ -105,10 +108,12 @@ export function useAuthStore() {
   }
 
   async function toggleFavoriteSong(songId: string): Promise<boolean> {
+    const token = state.token
     const data = await apiFetch('/user/favorite/song', {
       method: 'POST',
       body: JSON.stringify({ song_id: songId }),
     })
+    if (state.token !== token) return data.favorited
     if (data.favorited) {
       state.favoriteSongIds.push(songId)
     } else {
@@ -118,10 +123,12 @@ export function useAuthStore() {
   }
 
   async function toggleFavoritePlaylist(playlistId: string): Promise<boolean> {
+    const token = state.token
     const data = await apiFetch('/user/favorite/playlist', {
       method: 'POST',
       body: JSON.stringify({ playlist_id: playlistId }),
     })
+    if (state.token !== token) return data.favorited
     if (data.favorited) {
       state.favoritePlaylistIds.push(playlistId)
     } else {

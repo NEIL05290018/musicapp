@@ -1,832 +1,356 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import {
-  Sparkles, TrendingUp, Clock, Compass, Search, Heart, UserRound,
-  Play, Pause, SkipBack, SkipForward, ListMusic, Loader2, Music2
-} from 'lucide-vue-next'
-import { playlists } from '@/data/playlists'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { songs as examples } from '@/data/songs'
 import type { Song } from '@/data/songs'
-import { songs, genres } from '@/data/songs'
-import { searchSongs, resolvePlayableUrl, type MusicApiSong } from '@/composables/useMusicApi'
-import { useAuthStore } from '@/composables/useAuthStore'
-import { t } from '@/i18n'
+import { playlists, getPlaylistSongs } from '@/data/playlists'
+import { searchSongs } from '@/composables/useMusicApi'
+import { library, rememberSongs, importSong } from '@/composables/usePersonalLibrary'
+import { musicPlayer, playMusic, pauseMusic } from '@/composables/useMusicPlayer'
+import { openInWorkbench, handoff } from '@/composables/useWorkbenchHandoff'
+import SongActions from '@/components/SongActions.vue'
 import SongDetailModal from '@/components/SongDetailModal.vue'
+import { t } from '@/i18n'
 
-interface ApiSong extends Song {
-  coverUrl: string
-  audioSrc: string
+interface DiscoverModule {
+  id: string
+  title: string
+  description: string
+  cover: string
+  color: string
+  tracks: Song[]
+  kind: 'theme' | 'category' | 'playlist'
+}
+interface PageTransition {
+  finished: Promise<void>
+  skipTransition: () => void
+}
+type TransitionDocument = Document & {
+  startViewTransition?: (update: () => Promise<void>) => PageTransition
 }
 
 const router = useRouter()
-const auth = useAuthStore()
+const route = useRoute()
+const query = ref('')
+const remote = ref<Song[]>([])
+const loading = ref(false)
+const notice = ref('')
+const detail = ref<Song | null>(null)
+const importing = ref(false)
+const expandedId = ref<string | null>(null)
+const transitionKey = ref<string | null>(null)
+const animating = ref(false)
+const closeButton = ref<HTMLButtonElement>()
+let searchRevision = 0
+let transitionRevision = 0
+let activeTransition: PageTransition | undefined
+let gridScroll = 0
+let openedFromGrid = false
+let disposed = false
+let mounted = false
 
-const GLASS_COLORS = [
-  { rgb: '224,64,144', hex: '#e04090' },
-  { rgb: '79,143,255', hex: '#4f8fff' },
-  { rgb: '180,100,255', hex: '#b464ff' },
-  { rgb: '255,140,60', hex: '#ff8c3c' },
-  { rgb: '91,156,255', hex: '#5b9cff' },
-  { rgb: '52,211,153', hex: '#34d399' },
+const collection = computed(() => {
+  const map = new Map<string, Song>()
+  const catalog = [...library.catalog.filter(song => song.localKey), ...remote.value, ...examples]
+  catalog.forEach(song => map.set(song.id, song))
+  return [...map.values()]
+})
+const searchResults = computed(() => collection.value.filter(song =>
+  (song.title + ' ' + song.artist + ' ' + song.album).toLowerCase().includes(query.value.toLowerCase())
+))
+const themes = computed<DiscoverModule[]>(() => [
+  {
+    id: 'theme:featured', title: t('explore.featured'), description: t('explore.featuredDescription'),
+    cover: '/albums/album-16.jpg', color: '#4b4a77', kind: 'theme',
+    tracks: remote.value.length ? remote.value.slice(0, 16) : examples.slice(0, 12),
+  },
+  {
+    id: 'theme:local', title: t('explore.local'), description: t('explore.localDescription'),
+    cover: '/albums/album-6.jpg', color: '#254e54', kind: 'theme',
+    tracks: library.catalog.filter(song => song.localKey),
+  },
+  {
+    id: 'theme:recent', title: t('personal.continueListening'), description: t('explore.recentDescription'),
+    cover: '/albums/album-9.jpg', color: '#5d394f', kind: 'theme', tracks: library.recent,
+  },
+])
+const categoryDefinitions = [
+  { genre: 'Pop', color: '#b74667', cover: 5 },
+  { genre: 'Electronic', color: '#395ca8', cover: 2 },
+  { genre: 'Rock', color: '#a35636', cover: 4 },
+  { genre: 'Jazz', color: '#93702a', cover: 10 },
+  { genre: 'R&B', color: '#70519e', cover: 8 },
+  { genre: 'Classical', color: '#306f60', cover: 3 },
 ]
+const categories = computed<DiscoverModule[]>(() => categoryDefinitions.map(item => ({
+  id: 'category:' + item.genre,
+  title: t('explore.genre.' + item.genre),
+  description: t('explore.categoryDescription', { genre: t('explore.genre.' + item.genre) }),
+  cover: '/albums/album-' + item.cover + '.jpg', color: item.color, kind: 'category',
+  tracks: collection.value.filter(song => song.genre === item.genre),
+})))
+const playlistModules = computed<DiscoverModule[]>(() => playlists.map(list => ({
+  id: 'playlist:' + list.id, title: list.name, description: list.description,
+  cover: '/albums/album-' + list.coverIndex + '.jpg', color: '#355447', kind: 'playlist',
+  tracks: getPlaylistSongs(list),
+})))
+const modules = computed(() => [...themes.value, ...categories.value, ...playlistModules.value])
+const selected = computed(() => modules.value.find(item => item.id === expandedId.value))
+const playableTracks = computed(() => selected.value?.tracks.filter(isPlayable) || [])
 
-function getGlassColor(index: number) {
-  return GLASS_COLORS[index % GLASS_COLORS.length]
+function isPlayable(song: Song) { return !!(song.localKey || song.audioSrc || song.audioUrl) }
+function cover(song: Song) { return song.coverUrl || '/albums/album-' + song.coverIndex + '.jpg' }
+function clock(seconds: number) {
+  return Math.floor(seconds / 60) + ':' + String(Math.floor(seconds % 60)).padStart(2, '0')
 }
-
-const banners = [
-  { id: 'b1', text: 'discover.bannerExplore', sub: 'discover.bannerExploreSub', path: '/', color: '#ff2d95' },
-  { id: 'b2', text: 'discover.bannerPlaylists', sub: 'discover.bannerPlaylistsSub', path: '/discover', color: '#00ff9d' },
-  { id: 'b3', text: 'discover.bannerListening', sub: 'discover.bannerListeningSub', path: '/discover', color: '#ffb700' },
-]
-
-const favoriteSongs = computed(() => {
-  return songs.filter(s => auth.isSongFavorited(s.id))
-})
-
-const favoritePlaylists = computed(() => {
-  return playlists.filter(p => auth.isPlaylistFavorited(p.id))
-})
-
-const isLoggedIn = computed(() => auth.isLoggedIn())
-
-async function handleToggleSongFav(songId: string, event: Event) {
-  event.stopPropagation()
-  favoriteError.value = ''
-  if (!isLoggedIn.value) {
-    router.push('/auth')
-    return
-  }
-  try {
-    await auth.toggleFavoriteSong(songId)
-  } catch (error) {
-    favoriteError.value = error instanceof Error ? error.message : t('discover.favoriteFailed')
-  }
+function toggle(song: Song) {
+  if (musicPlayer.song?.id === song.id && musicPlayer.playing) pauseMusic()
+  else void playMusic(song, selected.value?.tracks || searchResults.value)
 }
-
-async function handleTogglePlaylistFav(playlistId: string, event: Event) {
-  event.stopPropagation()
-  favoriteError.value = ''
-  if (!isLoggedIn.value) {
-    router.push('/auth')
-    return
-  }
-  try {
-    await auth.toggleFavoritePlaylist(playlistId)
-  } catch (error) {
-    favoriteError.value = error instanceof Error ? error.message : t('discover.favoriteFailed')
+async function separateSong(song: Song) {
+  if (await openInWorkbench(song)) router.push('/')
+}
+function openModule(id: string) {
+  if (animating.value) return
+  gridScroll = window.scrollY
+  openedFromGrid = true
+  transitionKey.value = id
+  router.push({ path: '/discover', query: { view: id } })
+}
+function closeModule() {
+  if (animating.value) return
+  if (openedFromGrid) router.back()
+  else router.replace({ path: '/discover' })
+}
+function handleEscape(event: KeyboardEvent) {
+  if (event.key === 'Escape' && expandedId.value && !detail.value) {
+    event.preventDefault()
+    closeModule()
   }
 }
 
-function apiToSong(api: MusicApiSong, idx: number): ApiSong {
-  return {
-    id: api.id,
-    title: api.title,
-    artist: api.artist,
-    album: api.album,
-    duration: api.duration,
-    coverIndex: (idx % 30) + 1,
-    coverUrl: api.coverUrl,
-    audioSrc: api.audioUrl,
-    genre: '',
-    year: 2024,
+watch(() => route.query.view, async value => {
+  const next = typeof value === 'string' ? value : null
+  const previous = expandedId.value
+  if (next === previous) return
+  const revision = ++transitionRevision
+  transitionKey.value = next || previous
+  activeTransition?.skipTransition()
+  const update = async () => {
+    if (revision !== transitionRevision || disposed) return
+    expandedId.value = next
+    await nextTick()
+    window.scrollTo({ top: next ? 0 : gridScroll, behavior: 'instant' as ScrollBehavior })
   }
-}
-
-const newSongs = ref<ApiSong[]>([])
-const topSongs = ref<ApiSong[]>([])
-const searchQuery = ref('')
-const selectedGenre = ref('')
-const allSongs = ref<Song[]>(songs)
-const apiSongs = ref<MusicApiSong[]>([])
-const isLoadingApi = ref(false)
-const apiError = ref('')
-const favoriteError = ref('')
-const showDetailModal = ref(false)
-const detailSong = ref<Song | null>(null)
-
-const playQueue = ref<Song[]>([])
-const queueIndex = ref(-1)
-const isPlaying = ref(false)
-const currentTime = ref(0)
-const duration = ref(0)
-const isLoadingAudioUrl = ref(false)
-const playbackError = ref('')
-const apiAudioUrl = ref('')
-const audioRef = ref<HTMLAudioElement | null>(null)
-let playTimer: ReturnType<typeof setInterval> | null = null
-
-const playingSong = computed(() => {
-  if (queueIndex.value >= 0 && queueIndex.value < playQueue.value.length) {
-    return playQueue.value[queueIndex.value]
-  }
-  return null
-})
-
-const hasPrev = computed(() => playQueue.value.length > 1 && queueIndex.value > 0)
-const hasNext = computed(() => playQueue.value.length > 1 && queueIndex.value < playQueue.value.length - 1)
-
-const filteredSongs = computed(() => {
-  let result = [...allSongs.value]
-  if (searchQuery.value.trim()) {
-    const q = searchQuery.value.trim().toLowerCase()
-    result = result.filter(s =>
-      s.title.toLowerCase().includes(q) ||
-      s.artist.toLowerCase().includes(q) ||
-      s.album.toLowerCase().includes(q)
-    )
-  }
-  if (selectedGenre.value) {
-    result = result.filter(s => s.genre === selectedGenre.value)
-  }
-  return result
-})
-
-function getCover(indexOrSong: number | Song | ApiSong): string {
-  if (typeof indexOrSong === 'object' && 'coverUrl' in indexOrSong && indexOrSong.coverUrl) {
-    return indexOrSong.coverUrl
-  }
-  const index = typeof indexOrSong === 'number' ? indexOrSong : indexOrSong.coverIndex
-  return `/albums/album-${((index - 1) % 30) + 1}.jpg`
-}
-
-function formatDuration(s: number): string {
-  const m = Math.floor(s / 60)
-  const sec = Math.floor(s % 60)
-  return `${m}:${String(sec).padStart(2, '0')}`
-}
-
-function openPlaylist(id: string) {
-  router.push(`/discover/playlist/${id}`)
-}
-
-function openSongDetail(song: Song) {
-  detailSong.value = song
-  showDetailModal.value = true
-}
-
-function closeDetailModal() {
-  showDetailModal.value = false
-}
-
-function playFromModal(song: Song) {
-  showDetailModal.value = false
-  playSong(song)
-}
-
-function buildQueueFromSong(song: Song, source: Song[]) {
-  const idx = source.findIndex(s => s.id === song.id)
-  if (idx >= 0) {
-    playQueue.value = [...source]
-    queueIndex.value = idx
+  const transitionDocument = document as TransitionDocument
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  animating.value = true
+  await nextTick()
+  if (revision !== transitionRevision || disposed) return
+  const changesLayout = (previous === null) !== (next === null)
+  if (mounted && transitionDocument.startViewTransition && !reduceMotion && changesLayout) {
+    activeTransition = transitionDocument.startViewTransition(update)
+    await activeTransition.finished.catch(() => {})
   } else {
-    playQueue.value = [song]
-    queueIndex.value = 0
+    await update()
   }
-}
-
-function playSong(song: Song) {
-  const alreadyPlaying = playingSong.value?.id === song.id
-
-  if (alreadyPlaying) {
-    if (isPlaying.value) {
-      pauseSong()
-    } else {
-      resumeSong()
-    }
-    return
+  if (revision !== transitionRevision || disposed) return
+  animating.value = false
+  await nextTick()
+  if (next) closeButton.value?.focus({ preventScroll: true })
+  else {
+    const origin = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-discover-module]'))
+      .find(button => button.dataset.discoverModule === transitionKey.value)
+    origin?.focus({ preventScroll: true })
+    openedFromGrid = false
   }
+}, { immediate: true })
 
-  if (!playQueue.value.find(s => s.id === song.id)) {
-    buildQueueFromSong(song, allSongs.value)
-  }
-
-  stopPlayback()
-  startPlayback(song)
-}
-
-function playSongFromList(song: Song, source: Song[]) {
-  buildQueueFromSong(song, source)
-  stopPlayback()
-  startPlayback(song)
-}
-
-async function startPlayback(song: Song | ApiSong) {
-  playbackError.value = ''
-  isPlaying.value = true
-  currentTime.value = 0
-  duration.value = song.duration || 200
-
-  const apiSong = song as ApiSong
-  if (apiSong.audioSrc) {
-    isLoadingAudioUrl.value = true
-    const playUrl = await resolvePlayableUrl(apiSong.audioSrc)
-    isLoadingAudioUrl.value = false
-
-    if (playUrl) {
-      apiAudioUrl.value = playUrl
-      if (!audioRef.value) {
-        audioRef.value = new Audio()
-        audioRef.value.addEventListener('ended', onAudioEnded)
-        audioRef.value.addEventListener('timeupdate', onAudioTimeUpdate)
-        audioRef.value.addEventListener('loadedmetadata', onAudioLoaded)
-      }
-      audioRef.value.src = playUrl
-      audioRef.value.play().catch((error: unknown) => {
-        isPlaying.value = false
-        playbackError.value = error instanceof Error ? error.message : t('player.playbackFailed')
-      })
-      return
-    }
-  }
-
-  startTimer()
-}
-
-function startTimer() {
-  stopTimer()
-  playTimer = setInterval(() => {
-    currentTime.value += 1
-    if (currentTime.value >= duration.value) {
-      stopPlayback()
-    }
-  }, 1000)
-}
-
-function stopTimer() {
-  if (playTimer) { clearInterval(playTimer); playTimer = null }
-}
-
-function onAudioTimeUpdate() {
-  if (audioRef.value) {
-    currentTime.value = Math.floor(audioRef.value.currentTime)
-  }
-}
-
-function onAudioLoaded() {
-  if (audioRef.value) {
-    duration.value = Math.floor(audioRef.value.duration) || 200
-  }
-}
-
-function onAudioEnded() {
-  if (hasNext.value) {
-    skipNext()
-  } else {
-    stopPlayback()
-  }
-}
-
-function pauseSong() {
-  isPlaying.value = false
-  stopTimer()
-  if (audioRef.value) audioRef.value.pause()
-}
-
-function resumeSong() {
-  isPlaying.value = true
-  if (audioRef.value && audioRef.value.src) {
-    audioRef.value.play().catch(() => {
-      startTimer()
-    })
-  } else {
-    startTimer()
-  }
-}
-
-function stopPlayback() {
-  isPlaying.value = false
-  stopTimer()
-  if (audioRef.value) {
-    audioRef.value.pause()
-    audioRef.value.src = ''
-  }
-  currentTime.value = 0
-  apiAudioUrl.value = ''
-}
-
-function skipPrev() {
-  if (!hasPrev.value) return
-  queueIndex.value--
-  const song = playQueue.value[queueIndex.value]
-  stopPlayback()
-  startPlayback(song)
-}
-
-function skipNext() {
-  if (!hasNext.value) return
-  queueIndex.value++
-  const song = playQueue.value[queueIndex.value]
-  stopPlayback()
-  startPlayback(song)
-}
-
-function scrollContainer(dir: number, refKey: string) {
-  const el = document.querySelector(`[data-scroll="${refKey}"]`) as HTMLElement
-  if (!el) return
-  el.scrollBy({ left: dir * 320, behavior: 'smooth' })
-}
-
-function progressPercent(): string {
-  if (!duration.value) return '0%'
-  return `${(currentTime.value / duration.value) * 100}%`
-}
-
-onMounted(async () => {
-  isLoadingApi.value = true
-
-  const queries = ['Taylor Swift', 'Ed Sheeran', 'BTS', 'Coldplay', 'Adele', 'Imagine Dragons']
-  const allResults: MusicApiSong[] = []
-
+async function search() {
+  const revision = ++searchRevision
+  loading.value = true
+  notice.value = ''
   try {
-    for (const q of queries) {
-      const batch = await searchSongs(q, 6)
-      allResults.push(...batch)
-    }
-
-    const unique = allResults.filter((s, i, arr) => arr.findIndex(x => x.id === s.id) === i)
-
-    if (unique.length >= 8) {
-      topSongs.value = unique.slice(0, 10).map((s, i) => apiToSong(s, i))
-      newSongs.value = unique.slice(10, 18).map((s, i) => apiToSong(s, i + 10))
-    } else if (unique.length > 0) {
-      topSongs.value = unique.slice(0, Math.min(10, unique.length)).map((s, i) => apiToSong(s, i))
-    }
-
-    apiSongs.value = unique
-    if (unique.length === 0) apiError.value = t('discover.libraryUnavailable')
-  } catch (error) {
-    apiError.value = error instanceof Error ? error.message : t('discover.libraryUnavailable')
+    const results = await searchSongs(query.value, 24)
+    if (revision !== searchRevision || disposed) return
+    remote.value = results.map((song, index) => ({
+      id: song.id, title: song.title, artist: song.artist, album: song.album,
+      duration: song.duration, coverIndex: index % 30 + 1, coverUrl: song.coverUrl,
+      audioSrc: song.audioUrl, genre: '', year: 0,
+    }))
+    rememberSongs(remote.value)
+    notice.value = results.length ? '' : t('explore.remoteUnavailable')
+  } catch {
+    notice.value = t('personal.storageError')
   } finally {
-    isLoadingApi.value = false
+    if (revision === searchRevision && !disposed) loading.value = false
   }
-
-  if (!auth.isLoggedIn()) {
-    await auth.restoreSession()
+}
+async function addFiles(event: Event) {
+  const input = event.target as HTMLInputElement
+  importing.value = true
+  try {
+    for (const file of Array.from(input.files || [])) await importSong(file)
+    notice.value = t('personal.imported')
+  } catch {
+    notice.value = t('personal.storageError')
+  } finally {
+    importing.value = false
+    input.value = ''
   }
+}
+onMounted(() => {
+  mounted = true
+  void search()
+  window.addEventListener('keydown', handleEscape)
 })
-
 onUnmounted(() => {
-  stopPlayback()
-  if (audioRef.value) {
-    audioRef.value.removeEventListener('ended', onAudioEnded)
-    audioRef.value.removeEventListener('timeupdate', onAudioTimeUpdate)
-    audioRef.value.removeEventListener('loadedmetadata', onAudioLoaded)
-    audioRef.value = null
-  }
-})
-
-watch(playingSong, (song) => {
-  if (song) {
-    document.title = `${song.title} - ${song.artist} | AudioSift`
-  } else {
-    document.title = t('discover.documentTitle')
-  }
+  disposed = true
+  searchRevision++
+  transitionRevision++
+  activeTransition?.skipTransition()
+  window.removeEventListener('keydown', handleEscape)
 })
 </script>
 
 <template>
-  <div class="pointer-events-none fixed inset-0 z-[2] ml-0 bg-surface-base/35 backdrop-blur-[12px] md:ml-[240px]" />
-  <div class="relative z-[3] px-4 pb-28 pt-6 sm:px-8 sm:pt-8">
-    <div class="mb-10 flex flex-wrap items-end gap-3">
-      <Compass class="h-7 w-7 text-brand-pink" aria-hidden="true" />
-      <h1 class="text-2xl font-bold text-white">{{ t('discover.title') }}</h1>
-      <div v-if="isLoadingApi" class="flex items-center gap-2 rounded-full bg-white/[0.04] px-3 py-1">
-        <Loader2 class="h-3 w-3 animate-spin text-brand-pink" />
-        <span class="text-xs text-ink-secondary">{{ t('discover.loading') }}</span>
-      </div>
-      <div v-else-if="apiSongs.length > 0" class="rounded-full bg-semantic-success/15 px-3 py-1">
-        <span class="text-xs font-medium text-semantic-success">{{ t('discover.libraryConnected') }}</span>
-      </div>
-      <p v-if="apiError" class="w-full text-sm text-semantic-warning" role="status">{{ apiError }}</p>
-    </div>
-
-    <section v-if="isLoggedIn" class="mb-10">
-      <div class="green-card p-5 sm:p-6">
-        <div class="flex items-center gap-3 mb-5">
-          <div class="flex h-8 w-8 items-center justify-center rounded-full bg-brand-pink/15 text-brand-pink">
-            <UserRound class="h-4 w-4 text-white" />
-          </div>
-          <div>
-            <h2 class="text-sm font-semibold text-white">{{ t('discover.myMusic') }}</h2>
-            <p class="text-xs text-ink-secondary">
-              <Heart class="mr-1 inline h-3 w-3 text-brand-pink" />
-              {{ t('discover.favSummary', { s: auth.state.favoriteSongIds.length, p: auth.state.favoritePlaylistIds.length }) }}
-            </p>
-          </div>
+  <div class="library-page explore-page mx-auto max-w-[1500px] px-6 py-8 lg:px-10">
+    <template v-if="!expandedId">
+      <header class="explore-toolbar">
+        <div>
+          <p class="explore-eyebrow">AudioSift</p>
+          <h1 class="mt-1 text-3xl font-semibold">{{ t('nav.discover') }}</h1>
         </div>
+        <form class="explore-search" @submit.prevent="search">
+          <input v-model="query" class="library-input min-w-0 flex-1" :aria-label="t('personal.searchSongs')" :placeholder="t('personal.searchSongs')" />
+          <button class="library-button" :disabled="loading">{{ loading ? t('personal.searching') : t('personal.search') }}</button>
+          <button v-if="query" type="button" class="library-icon-button" :aria-label="t('explore.clearSearch')" @click="query = ''">×</button>
+        </form>
+        <label class="library-button cursor-pointer">
+          {{ importing ? t('upload.decoding') : t('personal.importAudio') }}
+          <input class="sr-only" type="file" accept="audio/*" multiple :disabled="importing" @change="addFiles" />
+        </label>
+      </header>
+      <p v-if="notice" class="mb-6 text-sm text-white/65" role="status">{{ notice }}</p>
 
-        <div v-if="favoriteSongs.length > 0">
-          <div class="mb-3 flex items-center gap-2">
-            <Heart class="h-3.5 w-3.5 text-brand-pink" />
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-secondary">{{ t('discover.favSongs') }}</h3>
+      <template v-if="!query.trim()">
+        <section class="explore-themes" aria-labelledby="explore-themes-title" style="view-transition-name: explore-themes">
+          <h2 id="explore-themes-title" class="sr-only">{{ t('explore.themes') }}</h2>
+          <button v-for="item in themes.slice(0,2)" :key="item.id"
+            class="explore-feature discover-module" :data-discover-module="item.id"
+            :style="{ viewTransitionName: transitionKey === item.id ? 'discover-focus' : undefined, backgroundColor: item.color }"
+            :disabled="animating" :aria-label="t('explore.open', { title: item.title })" @click="openModule(item.id)">
+            <img :src="item.cover" class="explore-feature-image" alt="" fetchpriority="high" />
+            <span class="explore-feature-shade" />
+            <span class="explore-feature-copy">
+              <span class="explore-eyebrow">{{ t('explore.themeLabel') }}</span>
+              <span class="mt-3 block text-3xl font-semibold lg:text-4xl">{{ item.title }}</span>
+              <span class="mt-3 block max-w-sm text-sm leading-6 text-white/80">{{ item.description }}</span>
+              <span class="explore-entry">{{ t('explore.openCollection') }} <span aria-hidden="true">↗</span></span>
+            </span>
+          </button>
+        </section>
+
+        <section class="explore-section" aria-labelledby="explore-categories-title" style="view-transition-name: explore-categories">
+          <div class="explore-section-heading">
+            <h2 id="explore-categories-title">{{ t('explore.categories') }}</h2>
+            <span class="text-sm text-white/55">{{ t('explore.categoriesHint') }}</span>
           </div>
-          <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-            <article
-              v-for="(song, idx) in favoriteSongs" :key="'fav-' + song.id"
-              class="white-card group w-[160px] shrink-0 p-2.5 transition-all duration-300 hover:-translate-y-1"
-            >
-              <div class="relative mb-2.5 aspect-square overflow-hidden rounded-lg">
-                <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                <button
-                  class="absolute inset-0 flex items-center justify-center bg-surface-base/30 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-                  :aria-label="`${t('player.play')} ${song.title}`"
-                  @click="playSongFromList(song, favoriteSongs)"
-                >
-                  <Play v-if="playingSong?.id !== song.id || !isPlaying" class="h-7 w-7 text-white" />
-                  <Pause v-else class="h-7 w-7 text-white" />
-                </button>
-                <button
-                  class="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-base/90 text-brand-pink opacity-100 transition-opacity hover:scale-110 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-                  :aria-label="t('discover.removeSongFavorite', { song: song.title })"
-                  :title="t('discover.removeFavorite')"
-                  :aria-pressed="true"
-                  @click="handleToggleSongFav(song.id, $event)"
-                >
-                  <Heart class="h-3.5 w-3.5" :class="auth.isSongFavorited(song.id) ? 'fill-brand-pink' : ''" />
-                </button>
-              </div>
-              <button class="block max-w-full truncate text-left text-xs font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
-                {{ song.title }}
-              </button>
-              <p class="mt-0.5 truncate text-[10px] text-ink-muted">{{ song.artist }}</p>
-            </article>
-          </div>
-        </div>
-
-        <div v-if="favoritePlaylists.length > 0" class="mt-5">
-          <div class="mb-3 flex items-center gap-2">
-            <ListMusic class="h-3.5 w-3.5 text-brand-sky" />
-            <h3 class="text-xs font-semibold uppercase tracking-wider text-ink-secondary">{{ t('discover.favPlaylists') }}</h3>
-          </div>
-          <div class="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-            <article
-              v-for="(pl, idx) in favoritePlaylists" :key="'favpl-' + pl.id"
-              class="white-card group w-[160px] shrink-0 p-2.5 transition-all duration-300 hover:-translate-y-1"
-            >
-              <div class="relative mb-2.5 aspect-square overflow-hidden rounded-lg">
-                <img :src="getCover(pl.coverIndex)" :alt="pl.name" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-                <button
-                  class="absolute inset-0 flex items-center justify-center bg-surface-base/30 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-                  :aria-label="t('playlist.open', { playlist: pl.name })"
-                  @click="openPlaylist(pl.id)"
-                >
-                  <ListMusic class="h-7 w-7 text-white" />
-                </button>
-                <button
-                  class="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-base/90 text-brand-sky opacity-100 transition-opacity hover:scale-110 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-                  :aria-label="t('discover.removePlaylistFavorite', { playlist: pl.name })"
-                  :title="t('discover.removeFavorite')"
-                  :aria-pressed="true"
-                  @click="handleTogglePlaylistFav(pl.id, $event)"
-                >
-                  <Heart class="h-3.5 w-3.5" :class="auth.isPlaylistFavorited(pl.id) ? 'fill-brand-sky' : ''" />
-                </button>
-              </div>
-              <button class="block max-w-full truncate text-left text-xs font-medium text-ink-black hover:text-brand-sky" @click="openPlaylist(pl.id)">
-                {{ pl.name }}
-              </button>
-              <p class="mt-0.5 truncate text-[10px] text-ink-muted">{{ pl.description }}</p>
-            </article>
-          </div>
-        </div>
-
-        <div v-if="favoriteSongs.length === 0 && favoritePlaylists.length === 0" class="text-center py-6">
-          <Heart class="mx-auto mb-2 h-8 w-8 text-white/45" />
-          <p class="text-sm text-white/75">{{ t('discover.noFavs') }}</p>
-          <p class="mt-1 text-xs text-white/55">{{ t('discover.noFavsHint') }}</p>
-        </div>
-        <p v-if="favoriteError" class="mt-4 border border-semantic-error/20 bg-semantic-error/10 p-3 text-sm !text-semantic-error" role="alert">{{ favoriteError }}</p>
-      </div>
-    </section>
-
-    <div class="mb-12 grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-5">
-      <button
-        v-for="banner in banners"
-        :key="banner.id"
-        type="button"
-        class="green-card group relative cursor-pointer overflow-hidden rounded-[28px] px-6 py-9 text-center transition-all duration-500 hover:-translate-y-1 sm:px-8 sm:py-12"
-        :style="{ borderColor: `${banner.color}3d` }"
-        @mouseenter="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}80` }"
-        @mouseleave="(e: MouseEvent) => { const el = e.currentTarget as HTMLElement; el.style.borderColor = `${banner.color}3d` }"
-        @click="router.push(banner.path)"
-      >
-        <h2 class="relative text-xl font-semibold tracking-tight text-white sm:text-2xl">{{ t(banner.text) }}</h2>
-        <p class="relative mt-2 text-sm text-ink-secondary">{{ t(banner.sub) }}</p>
-        <p class="relative mt-7 text-sm font-semibold">
-          {{ t('discover.learnMore') }}<span class="ml-1" aria-hidden="true">›</span>
-        </p>
-      </button>
-    </div>
-
-    <section class="mb-12">
-      <div class="mb-4 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <TrendingUp class="h-4 w-4 text-[#e04090]" />
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-white/75">{{ t('discover.trending') }}</h2>
-        </div>
-        <div class="flex gap-2">
-          <button class="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.05] text-white/65 transition-all hover:bg-white/[0.10] hover:text-white" :aria-label="t('discover.scrollPrevious')" @click="scrollContainer(-1, 'topScroll')">←</button>
-          <button class="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.05] text-white/65 transition-all hover:bg-white/[0.10] hover:text-white" :aria-label="t('discover.scrollNext')" @click="scrollContainer(1, 'topScroll')">→</button>
-        </div>
-      </div>
-      <div data-scroll="topScroll" class="flex snap-x snap-mandatory gap-4 overflow-x-auto scrollbar-hide pb-2">
-        <article
-          v-for="(song, idx) in topSongs" :key="song.id"
-          class="green-card group w-[180px] shrink-0 snap-start p-3 transition-all duration-300 hover:-translate-y-1"
-          :style="{
-            border: `1px solid rgba(${getGlassColor(idx).rgb},0.08)`,
-          }"
-          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.25)`; el.style.boxShadow = `0 0 24px rgba(${c.rgb},0.15)` }"
-          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.08)`; el.style.boxShadow = '' }"
-        >
-          <div class="relative mb-3 aspect-square overflow-hidden rounded-lg">
-            <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-            <button
-              class="absolute inset-0 flex items-center justify-center bg-surface-base/30 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-              :aria-label="`${t('player.play')} ${song.title}`"
-              @click="playSongFromList(song, topSongs)"
-            >
-              <Play v-if="playingSong?.id !== song.id || !isPlaying" class="h-8 w-8 text-white" />
-              <Pause v-else class="h-8 w-8 text-white" />
-            </button>
-            <button
-              class="absolute right-1.5 top-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-surface-base/90 text-white/75 opacity-0 transition-all hover:scale-110 hover:text-brand-pink group-hover:opacity-100 group-focus-within:opacity-100"
-              :class="auth.isSongFavorited(song.id) ? '!opacity-100 !text-[#e04090]' : ''"
-              :aria-pressed="auth.isSongFavorited(song.id)"
-              :aria-label="auth.isSongFavorited(song.id) ? t('discover.removeSongFavorite', { song: song.title }) : t('discover.addSongFavorite', { song: song.title })"
-              :title="auth.isSongFavorited(song.id) ? t('discover.removeFavorite') : t('discover.addFavorite')"
-              @click="handleToggleSongFav(song.id, $event)"
-            >
-              <Heart class="h-4 w-4" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
+          <div class="explore-category-grid">
+            <button v-for="item in categories" :key="item.id" class="explore-category discover-module"
+              :data-discover-module="item.id"
+              :style="{ backgroundColor: item.color, viewTransitionName: transitionKey === item.id ? 'discover-focus' : undefined }"
+              :disabled="animating" :aria-label="t('explore.open', { title: item.title })" @click="openModule(item.id)">
+              <img :src="item.cover" alt="" loading="lazy" />
+              <span class="explore-category-tint" />
+              <span class="explore-category-name">{{ item.title }}</span>
+              <span class="explore-category-arrow" aria-hidden="true">↗</span>
             </button>
           </div>
-          <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
-            {{ song.title }}
-          </button>
-          <p class="mt-0.5 truncate text-xs text-ink-secondary">{{ song.artist }}</p>
-        </article>
-      </div>
-    </section>
+        </section>
 
-    <section class="mb-12">
-      <div class="mb-4 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <Clock class="h-4 w-4 text-[#e04090]" />
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-white/75">{{ t('discover.newReleases') }}</h2>
+        <section v-if="themes[2].tracks.length" class="explore-section">
+          <div class="explore-section-heading"><h2>{{ t('personal.continueListening') }}</h2></div>
+          <button class="explore-recent discover-module" :data-discover-module="themes[2].id"
+            :style="{ viewTransitionName: transitionKey === themes[2].id ? 'discover-focus' : undefined }"
+            :disabled="animating" @click="openModule(themes[2].id)">
+            <span class="flex -space-x-5">
+              <img v-for="song in themes[2].tracks.slice(0,3)" :key="song.id" :src="cover(song)" class="h-20 w-20 rounded-2xl border-2 border-[#151c25] object-cover" alt="" />
+            </span>
+            <span class="flex-1 text-left"><span class="block text-lg font-semibold">{{ t('explore.recentDescription') }}</span><span class="mt-1 block text-sm text-white/60">{{ themes[2].tracks.length }} {{ t('personal.tracks') }}</span></span>
+            <span aria-hidden="true">↗</span>
+          </button>
+        </section>
+
+        <section class="explore-section" aria-labelledby="explore-playlists-title" style="view-transition-name: explore-playlists">
+          <div class="explore-section-heading"><h2 id="explore-playlists-title">{{ t('personal.explorePlaylists') }}</h2></div>
+          <div class="explore-playlist-grid">
+            <button v-for="item in playlistModules" :key="item.id" class="explore-playlist discover-module"
+              :data-discover-module="item.id"
+              :style="{ viewTransitionName: transitionKey === item.id ? 'discover-focus' : undefined, backgroundColor: item.color }"
+              :disabled="animating" :aria-label="t('explore.open', { title: item.title })" @click="openModule(item.id)">
+              <img :src="item.cover" alt="" class="aspect-square w-full object-cover" loading="lazy" />
+              <span class="block px-4 pb-4 pt-3 text-left"><span class="block truncate font-semibold">{{ item.title }}</span><span class="mt-1 block text-xs text-white/65">{{ item.tracks.length }} {{ t('personal.tracks') }} · {{ t('explore.openCollection') }}</span></span>
+            </button>
+          </div>
+        </section>
+      </template>
+
+      <section v-else class="glass-card p-5" aria-labelledby="explore-search-title" aria-live="polite">
+        <h2 id="explore-search-title" class="mb-4 text-xl font-semibold">{{ t('personal.searchResults') }} · {{ searchResults.length }}</h2>
+        <div v-for="song in searchResults" :key="song.id" class="library-song-row">
+          <button class="library-icon-button" :disabled="!isPlayable(song)" :aria-label="t('player.play') + song.title" @click="toggle(song)">▶</button>
+          <img :src="cover(song)" class="h-12 w-12 rounded-xl object-cover" alt="" />
+          <button class="min-w-0 flex-1 text-left" @click="detail = song"><span class="block truncate font-medium">{{ song.title }}</span><span class="text-xs text-white/60">{{ song.artist }}</span></button>
+          <span v-if="!isPlayable(song)" class="text-xs text-white/55">{{ t('personal.sample') }}</span>
+          <SongActions :song="song" />
         </div>
-      </div>
-      <div class="space-y-1">
-        <article
-          v-for="(song, idx) in newSongs" :key="song.id"
-          class="green-card group flex items-center gap-3 px-3 py-3 transition-all sm:gap-4 sm:px-4"
-          :style="{
-            borderColor: `rgba(${getGlassColor(idx).rgb},0.04)`,
-          }"
-          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.12)` }"
-          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.04)` }"
-        >
-          <button
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/[0.08] hover:text-brand-pink"
-            :aria-label="`${t('player.play')} ${song.title}`"
-            @click="playSongFromList(song, newSongs)"
-          >
-            <Pause v-if="playingSong?.id === song.id && isPlaying" class="h-4 w-4" />
-            <Play v-else class="h-4 w-4" />
-          </button>
-          <div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg">
-            <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
-              {{ song.title }}
-            </button>
-            <p class="truncate text-xs text-ink-secondary">{{ song.artist }} · {{ song.album }}</p>
-          </div>
-          <button
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/65 transition-all hover:bg-white/[0.08] hover:text-brand-pink"
-            :class="auth.isSongFavorited(song.id) ? '!text-[#e04090]' : ''"
-            :aria-pressed="auth.isSongFavorited(song.id)"
-            :aria-label="auth.isSongFavorited(song.id) ? t('discover.removeSongFavorite', { song: song.title }) : t('discover.addSongFavorite', { song: song.title })"
-            :title="auth.isSongFavorited(song.id) ? t('discover.removeFavorite') : t('discover.addFavorite')"
-            @click="handleToggleSongFav(song.id, $event)"
-          >
-            <Heart class="h-4 w-4" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
-          </button>
-          <span class="text-xs text-ink-muted tabular-nums">{{ formatDuration(song.duration) }}</span>
-        </article>
-      </div>
-    </section>
+        <p v-if="!searchResults.length" class="library-empty">{{ t('personal.noTracks') }}</p>
+      </section>
+    </template>
 
-    <section class="mb-12">
-      <div class="mb-4 flex items-center gap-2">
-        <Sparkles class="h-4 w-4 text-[#e04090]" />
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-white/75">{{ t('discover.featuredPlaylists') }}</h2>
-      </div>
-      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-        <article
-          v-for="(pl, idx) in playlists" :key="pl.id"
-          class="green-card group p-3 transition-all duration-300 hover:-translate-y-1"
-          :style="{ border: `1px solid rgba(${getGlassColor(idx).rgb},0.06)` }"
-          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.2)`; el.style.boxShadow = `0 0 20px rgba(${c.rgb},0.1)` }"
-          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.06)`; el.style.boxShadow = '' }"
-        >
-          <div class="relative mb-3 aspect-square overflow-hidden rounded-lg">
-            <img :src="getCover(pl.coverIndex)" :alt="pl.name" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
-            <button
-              class="absolute inset-0 flex items-center justify-center bg-surface-base/30 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-              :aria-label="t('playlist.open', { playlist: pl.name })"
-              @click="openPlaylist(pl.id)"
-            >
-              <ListMusic class="h-8 w-8 text-white" />
-            </button>
-            <button
-              class="absolute right-1.5 top-1.5 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-surface-base/90 text-white/75 opacity-100 transition-all hover:scale-110 hover:text-brand-sky sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
-              :class="auth.isPlaylistFavorited(pl.id) ? '!opacity-100 !text-[#5b9cff]' : ''"
-              :aria-pressed="auth.isPlaylistFavorited(pl.id)"
-              :aria-label="auth.isPlaylistFavorited(pl.id) ? t('discover.removePlaylistFavorite', { playlist: pl.name }) : t('discover.addPlaylistFavorite', { playlist: pl.name })"
-              :title="auth.isPlaylistFavorited(pl.id) ? t('discover.removeFavorite') : t('discover.addFavorite')"
-              @click="handleTogglePlaylistFav(pl.id, $event)"
-            >
-              <Heart class="h-4 w-4" :class="auth.isPlaylistFavorited(pl.id) ? 'fill-[#5b9cff]' : ''" />
-            </button>
-          </div>
-          <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-sky" @click="openPlaylist(pl.id)">
-            {{ pl.name }}
-          </button>
-          <p class="mt-0.5 truncate text-xs text-ink-muted">{{ pl.description }}</p>
-        </article>
-      </div>
-    </section>
-
-    <section>
-      <div class="mb-4 flex items-center gap-2">
-        <Search class="h-4 w-4 text-[#e04090]" />
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-white/75">{{ t('discover.browseAll') }}</h2>
-      </div>
-      <div class="mb-4 flex flex-wrap items-center gap-3">
-        <div class="relative flex-1 min-w-[240px] max-w-[400px]">
-          <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-          <input
-            v-model="searchQuery" type="text" :placeholder="t('discover.searchPlaceholder')"
-            :aria-label="t('discover.searchPlaceholder')"
-            class="w-full rounded-2xl border border-white/[0.10] bg-surface-card px-4 py-3 pl-10 text-sm text-white/90 placeholder:text-white/50 outline-none transition-all focus:border-brand-blue/50 focus:bg-surface-card-hover"
-          />
+    <section v-else-if="selected" class="explore-detail" style="view-transition-name: discover-focus" aria-labelledby="explore-detail-title">
+      <header class="explore-detail-hero" :style="{ backgroundColor: selected.color }">
+        <img :src="selected.cover" alt="" class="explore-detail-photo" />
+        <div class="explore-detail-shade" />
+        <button ref="closeButton" class="explore-close library-button" :disabled="animating" @click="closeModule">← {{ t('explore.back') }}</button>
+        <div class="explore-detail-copy">
+          <p class="explore-eyebrow">{{ t('explore.' + selected.kind + 'Label') }}</p>
+          <h1 id="explore-detail-title" class="mt-3 text-4xl font-semibold tracking-tight lg:text-5xl">{{ selected.title }}</h1>
+          <p class="mt-4 max-w-2xl text-sm leading-6 text-white/80">{{ selected.description }}</p>
+          <p class="mt-3 text-xs text-white/65">{{ selected.tracks.length }} {{ t('personal.tracks') }}</p>
         </div>
-        <select
-          v-model="selectedGenre"
-          class="cursor-pointer rounded-full border border-white/[0.10] bg-surface-card px-4 py-3 text-sm text-white/75 transition-all hover:bg-surface-card-hover"
-          :aria-label="t('discover.allGenres')"
-        >
-          <option value="">{{ t('discover.allGenres') }}</option>
-          <option v-for="g in genres" :key="g" :value="g">{{ g }}</option>
-        </select>
-      </div>
-      <div class="space-y-0.5 max-h-[400px] overflow-y-auto pr-1">
-        <article
-          v-for="(song, idx) in filteredSongs" :key="song.id"
-          class="green-card group flex items-center gap-2 px-3 py-3 transition-all focus-within:border-brand-pink/30 sm:gap-4 sm:px-4"
-          :style="{
-            borderColor: `rgba(${getGlassColor(idx).rgb},0.03)`,
-          }"
-          @mouseenter="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.10)` }"
-          @mouseleave="(e: MouseEvent) => { const c = getGlassColor(idx); const el = e.currentTarget as HTMLElement; el.style.borderColor = `rgba(${c.rgb},0.03)` }"
-        >
-          <button
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/[0.08] hover:text-brand-pink"
-            :aria-label="`${t('player.play')} ${song.title}`"
-            @click="playSongFromList(song, filteredSongs)"
-          >
-            <Pause v-if="playingSong?.id === song.id && isPlaying" class="h-4 w-4" />
-            <Play v-else class="h-4 w-4" />
-          </button>
-          <div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg">
-            <img :src="getCover(song)" :alt="`${song.title} — ${song.artist}`" class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" />
+      </header>
+      <div class="explore-detail-body">
+        <div class="mb-6 flex flex-wrap items-center gap-3">
+          <button class="library-primary" :disabled="!playableTracks.length || animating" @click="playMusic(playableTracks[0],playableTracks)">▶ {{ t('explore.playCollection') }}</button>
+          <label v-if="selected.id === 'theme:local'" class="library-button cursor-pointer">{{ t('personal.importAudio') }}<input class="sr-only" type="file" accept="audio/*" multiple :disabled="importing" @change="addFiles" /></label>
+          <p class="text-sm text-white/60">{{ t('explore.browseHint') }}</p>
+        </div>
+        <p v-if="notice && selected.id === 'theme:local'" class="mb-4 text-sm text-white/65" role="status">{{ notice }}</p>
+        <p v-if="handoff.error" class="mb-4 text-rose-200" role="alert">{{ t(handoff.error) }}</p>
+        <p v-if="selected.tracks.length && !playableTracks.length" class="mb-5 text-sm text-amber-100/80">{{ t('explore.sampleHint') }}</p>
+        <div class="explore-track-list">
+          <div v-for="(song,index) in selected.tracks" :key="song.id" class="library-song-row explore-track-row">
+            <span class="w-5 shrink-0 text-center text-xs text-white/45">{{ index + 1 }}</span>
+            <button class="library-icon-button" :disabled="!isPlayable(song)" :aria-label="(musicPlayer.song?.id === song.id && musicPlayer.playing ? t('player.pause') : t('player.play')) + song.title" @click="toggle(song)">{{ musicPlayer.song?.id === song.id && musicPlayer.playing ? 'Ⅱ' : '▶' }}</button>
+            <img :src="cover(song)" class="h-12 w-12 shrink-0 rounded-xl object-cover" alt="" />
+            <button class="min-w-0 flex-1 text-left" @click="detail = song"><span class="block truncate font-medium">{{ song.title }}</span><span class="block truncate text-xs text-white/60">{{ song.artist }}</span></button>
+            <span class="hidden text-xs text-white/50 xl:block">{{ isPlayable(song) ? clock(song.duration) : t('personal.sample') }}</span>
+            <button class="library-button hidden lg:block" :disabled="!isPlayable(song) || handoff.busy" @click="separateSong(song)">{{ t('personal.separate') }}</button>
+            <SongActions :song="song" />
           </div>
-          <div class="flex-1 min-w-0">
-            <button class="block max-w-full truncate text-left text-sm font-medium text-ink-black hover:text-brand-pink" @click="openSongDetail(song)">
-              {{ song.title }}
-            </button>
-            <p class="truncate text-xs text-ink-secondary">{{ song.artist }} · {{ song.album }}</p>
-          </div>
-          <span class="hidden w-16 shrink-0 rounded-full border border-white/[0.10] bg-white/[0.03] px-2 py-1 text-right text-[10px] text-white/65 sm:block">{{ song.genre }}</span>
-          <button
-            class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white/65 transition-all hover:bg-white/[0.08] hover:text-brand-pink"
-            :class="auth.isSongFavorited(song.id) ? '!text-[#e04090]' : ''"
-            :aria-pressed="auth.isSongFavorited(song.id)"
-            :aria-label="auth.isSongFavorited(song.id) ? t('discover.removeSongFavorite', { song: song.title }) : t('discover.addSongFavorite', { song: song.title })"
-            :title="auth.isSongFavorited(song.id) ? t('discover.removeFavorite') : t('discover.addFavorite')"
-            @click="handleToggleSongFav(song.id, $event)"
-          >
-            <Heart class="h-3.5 w-3.5" :class="auth.isSongFavorited(song.id) ? 'fill-[#e04090]' : ''" />
-          </button>
-          <span class="w-12 text-right text-xs text-ink-muted tabular-nums">{{ formatDuration(song.duration) }}</span>
-        </article>
-        <div v-if="filteredSongs.length === 0" class="flex flex-col items-center justify-center py-16">
-          <Search class="mb-3 h-10 w-10 text-white/45" />
-          <p class="text-sm text-white/70">{{ t('discover.noMatches') }}</p>
+        </div>
+        <div v-if="!selected.tracks.length" class="explore-empty">
+          <h2 class="text-xl font-semibold">{{ t('explore.emptyTitle') }}</h2>
+          <p class="mt-3 text-sm text-white/60">{{ selected.id === 'theme:local' ? t('explore.emptyLocal') : t('personal.noTracks') }}</p>
         </div>
       </div>
     </section>
-
-    <Teleport to="body">
-      <Transition name="player-slide">
-        <div v-if="playingSong" class="fixed bottom-16 left-0 right-0 z-50 border-t border-white/[0.08] bg-surface-elevated/95 backdrop-blur-2xl md:bottom-0 md:left-[240px]">
-          <div class="absolute bottom-full left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-          <div
-            class="absolute left-0 right-0 top-0 h-0.5 bg-white/[0.10] sm:hidden"
-            role="progressbar"
-            :aria-valuenow="duration ? Math.round((currentTime / duration) * 100) : 0"
-            aria-valuemin="0"
-            aria-valuemax="100"
-            :aria-label="t('player.progress')"
-          >
-            <div class="h-full bg-brand-pink" :style="{ width: progressPercent() }" />
-          </div>
-          <div class="flex items-center gap-2 px-3 py-3 sm:gap-4 sm:px-6">
-            <div class="flex items-center gap-3 flex-1 min-w-0">
-              <div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-white/[0.08]">
-                <img :src="getCover(playingSong as ApiSong)" :alt="playingSong.album" class="h-full w-full object-cover" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-white truncate">{{ playingSong.title }}</p>
-                <p class="text-xs text-white/45 truncate">{{ playingSong.artist }}</p>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <button
-                class="transition-colors"
-                :class="hasPrev ? 'text-ink-secondary hover:text-white' : 'cursor-not-allowed text-ink-muted'"
-                :disabled="!hasPrev"
-                :aria-label="t('player.previous')"
-                :title="t('player.previous')"
-                @click="skipPrev"
-              >
-                <SkipBack class="h-5 w-5" />
-              </button>
-              <button
-                class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-pink text-white transition-colors hover:bg-brand-pink-hover"
-                :aria-label="isPlaying ? t('player.pause') : t('player.play')"
-                :title="isPlaying ? t('player.pause') : t('player.play')"
-                @click="isPlaying ? pauseSong() : resumeSong()"
-              >
-                <Loader2 v-if="isLoadingAudioUrl" class="h-4 w-4 animate-spin" />
-                <Pause v-else-if="isPlaying" class="h-4 w-4" />
-                <Play v-else class="h-4 w-4 ml-0.5" />
-              </button>
-              <button
-                class="transition-colors"
-                :class="hasNext ? 'text-ink-secondary hover:text-white' : 'cursor-not-allowed text-ink-muted'"
-                :disabled="!hasNext"
-                :aria-label="t('player.next')"
-                :title="t('player.next')"
-                @click="skipNext"
-              >
-                <SkipForward class="h-5 w-5" />
-              </button>
-            </div>
-
-            <div class="hidden w-[280px] shrink-0 items-center gap-3 sm:flex">
-              <span class="text-xs text-white/45 tabular-nums w-10 text-right">{{ formatDuration(currentTime) }}</span>
-              <div
-                class="h-1 flex-1 overflow-hidden rounded-full bg-white/[0.10]"
-                role="progressbar"
-                :aria-valuenow="duration ? Math.round((currentTime / duration) * 100) : 0"
-                aria-valuemin="0"
-                aria-valuemax="100"
-                :aria-label="t('player.progress')"
-              >
-                <div
-                  class="h-full rounded-full bg-gradient-to-r from-[#e04090] to-[#5b9cff] transition-all duration-1000"
-                  :style="{ width: progressPercent() }"
-                />
-              </div>
-              <span class="text-xs text-white/45 tabular-nums w-10">{{ formatDuration(duration) }}</span>
-            </div>
-            <p v-if="playbackError" class="px-4 pb-2 text-xs text-semantic-error" role="alert">{{ playbackError }}</p>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <SongDetailModal
-      :song="detailSong"
-      :visible="showDetailModal"
-      @close="closeDetailModal"
-      @play="playFromModal"
-    />
+    <section v-else class="glass-card p-8">
+      <h1 class="text-xl font-semibold">{{ t('explore.notFound') }}</h1>
+      <button ref="closeButton" class="library-button mt-5" @click="closeModule">{{ t('explore.back') }}</button>
+    </section>
+    <SongDetailModal :song="detail" :visible="!!detail" @close="detail = null" @play="song => { toggle(song); detail = null }" />
   </div>
 </template>
-
-<style scoped>
-.player-slide-enter-active,
-.player-slide-leave-active {
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-.player-slide-enter-from,
-.player-slide-leave-to {
-  transform: translateY(100%);
-  opacity: 0;
-}
-</style>

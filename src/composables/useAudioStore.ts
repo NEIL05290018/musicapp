@@ -10,6 +10,7 @@ export interface TimeSelection {
 }
 
 export interface StemInfo {
+  localKey?: string
   url: string
   duration: number
 }
@@ -26,7 +27,13 @@ export interface AudioState {
   separationStatus: SeparationStatus
   separationProgress: number
   separationError: string | null
+  submission: { range: TimeSelection; fileName: string; stems: StemType[]; owner: string } | null
+  pendingTaskId: string | null
+  separationFailure: 'request' | 'processing' | 'status' | null
   taskId: string | null
+  resultRange: TimeSelection | null
+  resultsStoredOnly: boolean
+  resultFileName: string
   results: Record<string, StemInfo>
 
   exportFormat: 'wav' | 'mp3'
@@ -48,7 +55,13 @@ const state = reactive<AudioState>({
   separationStatus: 'idle',
   separationProgress: 0,
   separationError: null,
+  submission: null,
+  pendingTaskId: null,
+  separationFailure: null,
   taskId: null,
+  resultRange: null,
+  resultsStoredOnly: false,
+  resultFileName: '',
   results: {},
 
   exportFormat: 'wav',
@@ -66,7 +79,7 @@ export function useAudioStore() {
     state.audioSampleRate = sampleRate
   }
 
-  function addTimeSelection(sel: TimeSelection) { state.timeSelections.push(sel) }
+  function addTimeSelection(sel: TimeSelection) { state.timeSelections = [sel] }
   function removeTimeSelection(id: string) {
     state.timeSelections = state.timeSelections.filter(s => s.id !== id)
   }
@@ -104,7 +117,13 @@ export function useAudioStore() {
     state.separationStatus = 'idle'
     state.separationProgress = 0
     state.separationError = null
+    state.submission = null
+    state.pendingTaskId = null
+    state.separationFailure = null
     state.taskId = null
+    state.resultRange = null
+    state.resultsStoredOnly = false
+    state.resultFileName = ''
     state.results = {}
     state.exportFormat = 'wav'
     state.playingTrack = null

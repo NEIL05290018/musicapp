@@ -2,28 +2,29 @@
 import { Download, Package } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
 import { getDownloadUrl } from '@/composables/useAudioUtils'
+import { downloadAudio } from '@/composables/usePersonalLibrary'
+import { ref } from 'vue'
 import { t } from '@/i18n'
 import type { StemType } from '@/composables/useAudioStore'
 
 const { state, setExportFormat } = useAudioStore()
 
-function downloadAll() {
-  const stems = Object.keys(state.results) as StemType[]
-  stems.forEach((stem) => {
-    const url = getDownloadUrl(stem, state.taskId || '', state.exportFormat)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `AudioSift_${t(`stem.${stem}`)}.${state.exportFormat}`
-    a.click()
-  })
+const downloadError = ref(false)
+async function downloadSingle(stem: StemType) {
+  downloadError.value = false
+  try {
+    if (state.results[stem]?.localKey && state.exportFormat === 'wav') {
+      await downloadAudio(state.results[stem].localKey!, 'AudioSift_' + stem + '.wav')
+    } else {
+      const a = document.createElement('a')
+      a.href = getDownloadUrl(stem, state.taskId || '', state.exportFormat)
+      a.download = 'AudioSift_' + stem + '.' + state.exportFormat
+      a.click()
+    }
+  } catch { downloadError.value = true }
 }
-
-function downloadSingle(stem: StemType) {
-  const url = getDownloadUrl(stem, state.taskId || '', state.exportFormat)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `AudioSift_${t(`stem.${stem}`)}.${state.exportFormat}`
-  a.click()
+async function downloadAll() {
+  for (const stem of Object.keys(state.results) as StemType[]) await downloadSingle(stem)
 }
 </script>
 
@@ -34,6 +35,8 @@ function downloadSingle(stem: StemType) {
       <span class="text-xs font-semibold text-ink-secondary">{{ t('export.title') }}</span>
     </div>
 
+    <p v-if="state.resultsStoredOnly" class="text-sm">{{ t('personal.savedWav') }}</p>
+    <p v-if="downloadError" role="alert">{{ t('personal.storageError') }}</p>
     <div class="flex flex-wrap items-center gap-3">
       <div class="flex rounded-full bg-white/[0.03] p-0.5">
         <button
@@ -42,7 +45,7 @@ function downloadSingle(stem: StemType) {
           class="rounded-full px-4 py-2 text-xs font-medium text-ink-black transition-all duration-200"
           :class="state.exportFormat === fmt ? 'bg-ink-black/[0.10] shadow-sm' : 'hover:bg-ink-black/[0.05]'"
           :aria-pressed="state.exportFormat === fmt"
-          @click="setExportFormat(fmt)"
+          :disabled="state.resultsStoredOnly && fmt === 'mp3'" @click="setExportFormat(fmt)"
         >
           {{ fmt === 'wav' ? t('export.wav') : t('export.mp3') }}
         </button>

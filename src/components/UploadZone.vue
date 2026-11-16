@@ -5,11 +5,13 @@ import { useAudioStore } from '@/composables/useAudioStore'
 import { decodeAudioFile } from '@/composables/useAudioUtils'
 import { t } from '@/i18n'
 
-const { state, setAudioFile, setAudioBuffer, setAudioInfo } = useAudioStore()
+const { state, setAudioFile, setAudioBuffer, setAudioInfo, reset } = useAudioStore()
 
 const isDragging = ref(false)
 const error = ref<string | null>(null)
 const isLoading = ref(false)
+const failedFile = ref<File | null>(null)
+let readRevision = 0
 const inputRef = ref<HTMLInputElement>()
 
 function validateFile(file: File): string | null {
@@ -25,20 +27,27 @@ function validateFile(file: File): string | null {
 }
 
 async function processFile(file: File) {
+  if (isLoading.value) return
+  const currentRead = ++readRevision
+  failedFile.value = null
   const validationError = validateFile(file)
   if (validationError) {
     error.value = validationError
     return
   }
   error.value = null
+  failedFile.value = file
   isLoading.value = true
   try {
     const buffer = await decodeAudioFile(file)
+    if (currentRead !== readRevision) return
+    reset()
+    setAudioInfo(buffer.duration, buffer.sampleRate)
     setAudioFile(file)
     setAudioBuffer(buffer)
-    setAudioInfo(buffer.duration, buffer.sampleRate)
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : t('upload.failed')
+    failedFile.value = null
+  } catch {
+    error.value = t('p0.decodeError')
   } finally {
     isLoading.value = false
   }
@@ -72,8 +81,9 @@ function onFileChange(e: Event) {
 }
 
 function handleReset() {
-  setAudioFile(null)
-  setAudioBuffer(null)
+  readRevision++
+  failedFile.value = null
+  reset()
   error.value = null
 }
 </script>
@@ -155,11 +165,12 @@ function handleReset() {
         </div>
       </template>
 
-      <div v-if="error" id="upload-error" class="flex items-center gap-2 rounded-[28px] border border-semantic-error/20 bg-semantic-error/10 px-4 py-2" role="alert">
+      <span v-if="!error" id="upload-instructions" class="sr-only">{{ t('upload.instructions') }}</span>
+    </div>
+    <div v-if="error" id="upload-error" class="flex items-center gap-2 rounded-[28px] border border-semantic-error/20 bg-semantic-error/10 px-4 py-2" role="alert">
         <AlertCircle class="h-4 w-4 text-semantic-error" />
         <span class="!text-semantic-error text-sm font-medium">{{ error }}</span>
       </div>
-      <span v-else id="upload-instructions" class="sr-only">{{ t('upload.instructions') }}</span>
-    </div>
+    <button v-if="error && failedFile" class="workspace-button mt-2" @click="processFile(failedFile)">{{ t('p0.retryRead') }}</button>
   </div>
 </template>

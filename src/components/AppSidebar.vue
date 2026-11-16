@@ -16,7 +16,7 @@ const langs: Locale[] = ['en', 'zh']
 const navItems = [
   { path: '/', name: 'workbench', icon: Sparkles },
   { path: '/discover', name: 'discover', icon: Compass },
-  { path: '/about', name: 'about', icon: UserRound },
+  { path: '/profile', name: 'profile', icon: UserRound },
 ]
 
 onMounted(async () => {

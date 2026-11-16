@@ -19,9 +19,13 @@ const router = createRouter({
       component: () => import('@/pages/PlaylistPage.vue'),
     },
     {
+      path: '/profile',
+      name: 'profile',
+      component: () => import('@/pages/ProfilePage.vue'),
+    },
+    {
       path: '/about',
-      name: 'about',
-      component: () => import('@/pages/AboutPage.vue'),
+      redirect: '/profile',
     },
     {
       path: '/auth',

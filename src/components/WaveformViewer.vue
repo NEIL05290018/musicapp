@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { ZoomIn, ZoomOut, Trash2 } from 'lucide-vue-next'
+import { computed, ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ZoomIn, ZoomOut } from 'lucide-vue-next'
 import { useAudioStore } from '@/composables/useAudioStore'
-import { extractPeaks, formatTime, generateUUID } from '@/composables/useAudioUtils'
+import { extractPeaks, formatTime } from '@/composables/useAudioUtils'
+import { playback, previewSelection } from '@/composables/useWorkspacePlayback'
 import { t } from '@/i18n'
 
-const { state, addTimeSelection, removeTimeSelection } = useAudioStore()
+const { state, addTimeSelection, clearTimeSelections } = useAudioStore()
 
 const canvasRef = ref<HTMLCanvasElement>()
 const containerRef = ref<HTMLDivElement>()
@@ -14,8 +15,14 @@ const scrollOffset = ref(0)
 const isSelecting = ref(false)
 const selectionStart = ref(0)
 const selectionEnd = ref(0)
-const keyboardStart = ref(0)
-const keyboardEnd = ref(0)
+const range = computed(() => state.timeSelections[0])
+let dragEdge: 'start' | 'end' | null = null
+function setRange(start: number, end: number) {
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return
+  end = Math.min(state.audioDuration, Math.max(0.1, end))
+  start = Math.max(0, Math.min(start, end - 0.1))
+  addTimeSelection({ id: 'selection', startTime: start, endTime: end })
+}
 
 function draw() {
   const canvas = canvasRef.value
@@ -51,8 +58,8 @@ function draw() {
     ctx.fillRect(x, midY - peakHeight, Math.max(1, width / peaks.length), peakHeight * 2)
   }
 
-  if (zoom.value > 1) {
-    ctx.strokeStyle = 'rgba(255,255,255,0.2)'
+  {
+    ctx.strokeStyle = 'rgba(215, 230, 255, .4)'
     ctx.lineWidth = 0.5
     for (let x = 100; x < width; x += 100) {
       const timeAtX = visibleStart + (x / width) * visibleDuration
@@ -60,20 +67,23 @@ function draw() {
       ctx.moveTo(x, height - 24)
       ctx.lineTo(x, height)
       ctx.stroke()
-      ctx.fillStyle = 'rgba(255,255,255,0.3)'
+      ctx.fillStyle = '#dce7fa'
       ctx.font = '10px "JetBrains Mono", monospace'
       ctx.textAlign = 'center'
-      ctx.fillText(formatTime(timeAtX), x, height - 28)
+      ctx.fillText(formatTime(timeAtX), x, height - 9)
     }
   }
 
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+  ctx.strokeStyle = 'rgba(215, 230, 255, .2)'
   ctx.lineWidth = 0.5
   ctx.beginPath()
   ctx.moveTo(0, midY)
   ctx.lineTo(width, midY)
   ctx.stroke()
 
+  const cursor = (playback.position - visibleStart) / visibleDuration * width
+  ctx.fillStyle = '#ff9bc8'
+  ctx.fillRect(cursor, 0, 2, height)
   state.timeSelections.forEach((sel) => {
     const selStart = ((sel.startTime - visibleStart) / visibleDuration) * width
     const selEnd = ((sel.endTime - visibleStart) / visibleDuration) * width
@@ -132,19 +142,25 @@ function getTimeFromX(clientX: number): number {
   return Math.min(state.audioDuration, Math.max(0, visibleStart + (x / rect.width) * visibleDuration))
 }
 
-function onPointerDown(e: PointerEvent) {
+function onPointerDown(e: PointerEvent, edge?: 'start' | 'end') {
   if (e.button !== 0) return
-  const canvas = e.currentTarget as HTMLCanvasElement
+  const canvas = canvasRef.value!
   canvas.setPointerCapture(e.pointerId)
   const time = getTimeFromX(e.clientX)
   isSelecting.value = true
-  selectionStart.value = time
-  selectionEnd.value = time
+  const tolerance = state.audioDuration / zoom.value * 12 / canvas.getBoundingClientRect().width
+  dragEdge = edge ?? (Math.abs(time - (range.value?.startTime ?? -1)) < tolerance ? 'start'
+    : Math.abs(time - (range.value?.endTime ?? -1)) < tolerance ? 'end' : null)
+  selectionStart.value = dragEdge ? range.value!.startTime : time
+  selectionEnd.value = dragEdge ? range.value!.endTime : time
 }
 
 function onPointerMove(e: PointerEvent) {
   if (!isSelecting.value) return
-  selectionEnd.value = getTimeFromX(e.clientX)
+  const time = getTimeFromX(e.clientX)
+  if (dragEdge === 'start') selectionStart.value = Math.min(time, selectionEnd.value - 0.1)
+  else if (dragEdge === 'end') selectionEnd.value = Math.max(time, selectionStart.value + 0.1)
+  else selectionEnd.value = time
 }
 
 function onPointerUp(e: PointerEvent) {
@@ -152,52 +168,51 @@ function onPointerUp(e: PointerEvent) {
   const start = Math.min(selectionStart.value, selectionEnd.value)
   const end = Math.max(selectionStart.value, selectionEnd.value)
   if (end - start > 0.1) {
-    addTimeSelection({ id: generateUUID(), startTime: start, endTime: end })
+    setRange(start, end)
   }
   isSelecting.value = false
   const canvas = e.currentTarget as HTMLCanvasElement
   if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId)
 }
 
+function handlePosition(edge: 'start' | 'end') {
+  if (!range.value) return { display: 'none' }
+  const duration = state.audioDuration / zoom.value
+  const visibleStart = (state.audioDuration - duration) * scrollOffset.value
+  const percent = ((edge === 'start' ? range.value.startTime : range.value.endTime) - visibleStart) / duration * 100
+  return { left: 'clamp(22px, ' + percent + '%, calc(100% - 22px))', display: percent < 0 || percent > 100 ? 'none' : undefined }
+}
+function moveHandle(event: KeyboardEvent, edge: 'start' | 'end') {
+  if (!range.value || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return
+  event.preventDefault()
+  const delta = (event.key === 'ArrowLeft' ? -1 : 1) * (event.shiftKey ? 1 : .1)
+  if (edge === 'start') setRange(range.value.startTime + delta, range.value.endTime)
+  else setRange(range.value.startTime, Math.max(range.value.startTime + .1, range.value.endTime + delta))
+}
+
 function onWheel(e: WheelEvent) {
+  if (!e.ctrlKey) return
   e.preventDefault()
-  zoom.value = Math.max(1, Math.min(50, zoom.value - e.deltaY * 0.01))
+  changeZoom(e.deltaY < 0 ? 1 : -1)
 }
 
 function changeZoom(delta: number) {
+  const center = (range.value ? (range.value.startTime + range.value.endTime) / 2 : playback.position)
   zoom.value = Math.max(1, Math.min(50, zoom.value + delta))
+  const duration = state.audioDuration / zoom.value
+  scrollOffset.value = zoom.value === 1 ? 0 : Math.max(0, Math.min(1, (center - duration / 2) / (state.audioDuration - duration)))
 }
 
-function updateKeyboardStart(e: Event) {
-  const value = Number((e.target as HTMLInputElement).value)
-  keyboardStart.value = Math.min(value, Math.max(0, keyboardEnd.value - 0.1))
-}
-
-function updateKeyboardEnd(e: Event) {
-  const value = Number((e.target as HTMLInputElement).value)
-  keyboardEnd.value = Math.max(value, Math.min(state.audioDuration, keyboardStart.value + 0.1))
-}
-
-function addKeyboardSelection() {
-  if (keyboardEnd.value - keyboardStart.value < 0.1) return
-  addTimeSelection({
-    id: generateUUID(),
-    startTime: keyboardStart.value,
-    endTime: keyboardEnd.value,
-  })
-}
-
-watch([zoom, scrollOffset, () => state.timeSelections, isSelecting, selectionStart, selectionEnd], () => {
+watch([zoom, scrollOffset, () => state.timeSelections, isSelecting, selectionStart, selectionEnd, () => playback.position], () => {
   nextTick(draw)
 })
 
-watch(() => state.audioBuffer, () => {
-  if (state.audioBuffer) {
-    keyboardStart.value = 0
-    keyboardEnd.value = Math.min(state.audioDuration, 30)
-    nextTick(draw)
-  }
-})
+watch(() => state.audioDuration, () => {
+  zoom.value = 1
+  scrollOffset.value = 0
+  if (!range.value && state.audioDuration >= 0.1) setRange(0, state.audioDuration)
+  nextTick(draw)
+}, { immediate: true })
 
 onMounted(() => {
   window.addEventListener('resize', draw)
@@ -223,14 +238,14 @@ onUnmounted(() => {
       <div class="flex items-center gap-1">
         <button
           class="flex h-7 w-7 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
-          @click="changeZoom(-2)"
+          :aria-label="t('work.zoomOut')" @click="changeZoom(-1)"
         >
           <ZoomOut class="h-3.5 w-3.5" />
         </button>
         <span class="min-w-[40px] text-center text-xs text-white/55">{{ zoom.toFixed(0) }}x</span>
         <button
           class="flex h-7 w-7 items-center justify-center rounded-full text-white/40 transition-colors hover:bg-white/[0.08] hover:text-white/70"
-          @click="changeZoom(2)"
+          :aria-label="t('work.zoomIn')" @click="changeZoom(1)"
         >
           <ZoomIn class="h-3.5 w-3.5" />
         </button>
@@ -240,78 +255,42 @@ onUnmounted(() => {
     <div ref="containerRef" class="white-card relative overflow-hidden backdrop-blur-sm">
       <canvas
         ref="canvasRef"
-        class="h-32 w-full touch-pan-y cursor-crosshair"
+        class="h-40 w-full touch-none cursor-crosshair"
         role="img"
         :aria-label="t('wave.canvasLabel')"
         aria-describedby="wave-hint"
-        @pointerdown="onPointerDown"
+        @pointerdown="onPointerDown($event)"
         @pointermove="onPointerMove"
         @pointerup="onPointerUp"
-        @pointercancel="onPointerUp"
+        @pointercancel="isSelecting = false"
         @wheel="onWheel"
       />
-    </div>
-
-    <div class="white-card grid gap-3 p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-      <label class="flex flex-col gap-2 text-xs text-ink-black">
-        <span>{{ t('wave.startTime', { time: formatTime(keyboardStart) }) }}</span>
-        <input
-          type="range"
-          min="0"
-          :max="Math.max(0, keyboardEnd - 0.1)"
-          step="0.1"
-          :value="keyboardStart"
-          :disabled="state.audioDuration < 0.1"
-          class="range-slider"
-          :aria-label="t('wave.startTime', { time: formatTime(keyboardStart) })"
-          @input="updateKeyboardStart"
-        />
-      </label>
-      <label class="flex flex-col gap-2 text-xs text-ink-black">
-        <span>{{ t('wave.endTime', { time: formatTime(keyboardEnd) }) }}</span>
-        <input
-          type="range"
-          :min="Math.min(state.audioDuration, keyboardStart + 0.1)"
-          :max="state.audioDuration"
-          step="0.1"
-          :value="keyboardEnd"
-          :disabled="state.audioDuration < 0.1"
-          class="range-slider"
-          :aria-label="t('wave.endTime', { time: formatTime(keyboardEnd) })"
-          @input="updateKeyboardEnd"
-        />
-      </label>
-      <button
-        class="rounded-full border border-ink-black/15 bg-ink-black/[0.06] px-4 py-2 text-xs font-medium text-ink-black transition-colors hover:bg-ink-black/[0.10]"
-        :disabled="state.audioDuration < 0.1"
-        @click="addKeyboardSelection"
-      >
-        {{ t('wave.addSelection') }}
+      <button v-for="edge in (['start', 'end'] as const)" :key="edge"
+        class="selection-handle" :style="handlePosition(edge)"
+        :aria-label="t('p0.handle.' + edge)" :title="t('p0.handleHint')"
+        @pointerdown.stop.prevent="onPointerDown($event, edge)" @keydown="moveHandle($event, edge)">
+        <span aria-hidden="true">⋮</span>
       </button>
     </div>
 
-    <div v-if="state.timeSelections.length > 0" class="flex flex-col gap-1.5">
-      <div
-        v-for="sel in state.timeSelections"
-        :key="sel.id"
-        class="flex items-center gap-2 rounded-lg bg-white/[0.03] px-3 py-1.5"
-      >
-        <div class="h-2 w-2 rounded-full bg-brand-blue" />
-        <span class="font-mono text-xs text-white/60">
-          {{ formatTime(sel.startTime) }} - {{ formatTime(sel.endTime) }}
-        </span>
-        <span class="text-xs text-white/45">({{ (sel.endTime - sel.startTime).toFixed(1) }}s)</span>
-        <button
-          class="ml-auto flex h-8 w-8 items-center justify-center rounded-full text-white/45 transition-colors hover:bg-semantic-error/10 hover:text-semantic-error"
-          :aria-label="t('wave.removeSelection', { start: formatTime(sel.startTime), end: formatTime(sel.endTime) })"
-          :title="t('wave.removeSelection', { start: formatTime(sel.startTime), end: formatTime(sel.endTime) })"
-          @click="removeTimeSelection(sel.id)"
-        >
-          <Trash2 class="h-3 w-3" />
-        </button>
-      </div>
+    <label v-if="zoom > 1"  class="text-sm">{{ t('work.pan') }}
+      <input class="range-slider my-3" type="range" min="0" max="1" step="0.001" v-model.number="scrollOffset" />
+    </label>
+    <div v-if="range" class="grid gap-4 sm:grid-cols-2">
+      <label class="text-sm">{{ t('work.start') }}
+        <input class="workspace-input" type="number" min="0" :max="range.endTime - 0.1" step="0.1" :value="Number(range.startTime.toFixed(2))" @change="setRange(Number(($event.target as HTMLInputElement).value), range.endTime)" />
+        <input class="range-slider mt-4" :aria-label="t('work.start')" type="range" min="0" :max="range.endTime - 0.1" step="0.1" :value="range.startTime" @input="setRange(Number(($event.target as HTMLInputElement).value), range.endTime)" />
+      </label>
+      <label class="text-sm">{{ t('work.end') }}
+        <input class="workspace-input" type="number" :min="range.startTime + 0.1" :max="state.audioDuration" step="0.1" :value="Number(range.endTime.toFixed(2))" @change="setRange(range.startTime, Number(($event.target as HTMLInputElement).value))" />
+        <input class="range-slider mt-4" :aria-label="t('work.end')" type="range" :min="range.startTime + 0.1" :max="state.audioDuration" step="0.1" :value="range.endTime" @input="setRange(range.startTime, Number(($event.target as HTMLInputElement).value))" />
+      </label>
     </div>
-
+    <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
+      <span>{{ t('work.selected') }} {{ formatTime(range?.startTime ?? 0) }} – {{ formatTime(range?.endTime ?? state.audioDuration) }} · {{ ((range?.endTime ?? state.audioDuration) - (range?.startTime ?? 0)).toFixed(1) }} s</span>
+      <button class="workspace-primary" @click="previewSelection()">{{ t('p0.preview') }}</button>
+      <button class="workspace-button" @click="clearTimeSelections(); setRange(0, state.audioDuration); zoom = 1">{{ t('work.full') }}</button>
+    </div>
     <p id="wave-hint" class="text-xs text-white/55">
       {{ t('wave.hint') }}
     </p>
