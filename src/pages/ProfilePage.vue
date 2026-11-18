@@ -10,10 +10,11 @@ import { songs as exampleSongs } from '@/data/songs'
 import { playlists as featuredPlaylists } from '@/data/playlists'
 import type { Song } from '@/data/songs'
 import SongActions from '@/components/SongActions.vue'
-import AboutBackdrop from '@/components/AboutBackdrop.vue'
+import { ListMusic, AudioLines, Heart, History, ArrowUpRight } from 'lucide-vue-next'
 import { t } from '@/i18n'
 
 const auth = useAuthStore()
+const moduleIcons = { playlists: ListMusic, assets: AudioLines, favorites: Heart, recent: History }
 const router = useRouter()
 const editing = ref(false)
 const order = ref<ModuleId[]>([...library.layout])
@@ -116,10 +117,9 @@ onUnmounted(stopDrag)
 </script>
 
 <template>
-  <div class="library-page relative min-h-screen px-6 py-10">
-    <AboutBackdrop />
+  <div class="library-page profile-page relative min-h-screen px-6 py-10">
     <div class="relative z-10 mx-auto max-w-6xl">
-      <header class="glass-card mb-6 flex flex-wrap items-center justify-between gap-6 p-7">
+      <header class="profile-account glass-card mb-6 flex flex-wrap items-center justify-between gap-6 p-7">
         <div class="flex items-center gap-4">
           <div class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-pink/70 text-2xl">{{ auth.state.user?.username.slice(0,1).toUpperCase() || '♪' }}</div>
           <div><h1 class="text-2xl font-semibold">{{ auth.state.user?.username || t('personal.guest') }}</h1><p class="mt-1 text-sm">{{ auth.state.user?.email || t('personal.guestHint') }}</p><p class="mt-2 text-xs text-white/65">{{ t('personal.localStorage') }}</p></div>
@@ -141,10 +141,10 @@ onUnmounted(stopDrag)
         <div v-for="id in modules" :key="id" :data-module="id" class="profile-slot"
           :class="{ 'drop-slot': dragging === id }" :style="dragging === id ? { minHeight: dragCard.height + 'px' } : undefined">
           <Teleport to="body" :disabled="dragging !== id">
-          <section class="profile-module glass-card p-5" :class="{ 'is-lifted': dragging === id }"
+          <section class="profile-module glass-card p-5" :data-kind="id" :class="{ 'is-lifted': dragging === id }"
             :style="dragging === id ? { position: 'fixed', left: dragCard.x + 'px', top: dragCard.y + 'px', width: dragCard.width + 'px', height: dragCard.height + 'px', zIndex: 150 } : undefined">
           <header class="mb-4 flex items-center justify-between gap-2">
-            <h3 class="text-lg font-semibold">{{ t('personal.module.' + id) }}</h3>
+            <h3 class="profile-module-title text-lg font-semibold"><span class="profile-module-icon"><component :is="moduleIcons[id]" class="h-4 w-4" aria-hidden="true" /></span>{{ t('personal.module.' + id) }}</h3>
             <div v-if="editing" class="flex items-center gap-1">
               <button class="library-icon-button" :aria-label="t('personal.moveUp') + t('personal.module.' + id)" @click="moveModule(id,-1)">↑</button>
               <button class="library-icon-button" :aria-label="t('personal.moveDown') + t('personal.module.' + id)" @click="moveModule(id,1)">↓</button>
@@ -199,7 +199,7 @@ onUnmounted(stopDrag)
           </Teleport>
         </div>
       </TransitionGroup>
-      <details class="glass-card mt-6 p-5"><summary class="cursor-pointer">{{ t('personal.aboutHelp') }}</summary><p class="mt-3 text-sm">{{ t('personal.helpText') }}</p></details>
+      <RouterLink to="/about" class="profile-about-link">{{ t('personal.aboutHelp') }}<ArrowUpRight class="h-4 w-4" aria-hidden="true" /></RouterLink>
     </div>
 
   </div>

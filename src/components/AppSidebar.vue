@@ -2,7 +2,7 @@
 import { computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import {
-  Compass, Sparkles, UserRound, LogIn, LogOut, Heart,
+  Compass, Sparkles, UserRound, LogIn, LogOut, Heart, Info,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/composables/useAuthStore'
 import { t, locale, setLocale, type Locale } from '@/i18n'
@@ -17,6 +17,7 @@ const navItems = [
   { path: '/', name: 'workbench', icon: Sparkles },
   { path: '/discover', name: 'discover', icon: Compass },
   { path: '/profile', name: 'profile', icon: UserRound },
+  { path: '/about', name: 'about', icon: Info },
 ]
 
 onMounted(async () => {

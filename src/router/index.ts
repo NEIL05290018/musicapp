@@ -2,6 +2,11 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, from, savedPosition) {
+    // Discover manages its own collection expansion and return position.
+    if (to.path === from.path) return false
+    return savedPosition || { top: 0 }
+  },
   routes: [
     {
       path: '/',
@@ -25,7 +30,8 @@ const router = createRouter({
     },
     {
       path: '/about',
-      redirect: '/profile',
+      name: 'about',
+      component: () => import('@/pages/AboutPage.vue'),
     },
     {
       path: '/auth',
