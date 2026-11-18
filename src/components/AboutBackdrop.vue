@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { albumCoverCount } from '@/data/albumCatalog'
 
 const surface = ref<HTMLCanvasElement>()
 const background = ref<HTMLCanvasElement>()
@@ -14,8 +15,8 @@ let cache: HTMLCanvasElement | null = null
 let fadeStarted = 0
 let cycleTimer: ReturnType<typeof setInterval> | undefined
 let disposed = false
-let imageIndex = 16
-let bottomIndex = 1
+let imageIndex = 31
+let bottomIndex = 38
 let bottomImage: HTMLImageElement | null = null
 let bottomCache: HTMLCanvasElement | null = null
 let previousBottom: HTMLCanvasElement | null = null
@@ -186,12 +187,12 @@ function updateMotion() {
   if (enabled && !document.hidden) {
     frame = requestAnimationFrame(tick)
     cycleTimer = setInterval(() => {
-      imageIndex = (imageIndex + 4) % 30 + 1
-      bottomIndex = (bottomIndex + 2) % 30 + 1
-      if (bottomIndex === imageIndex) bottomIndex = bottomIndex % 30 + 1
+      imageIndex = (imageIndex + 4) % albumCoverCount + 1
+      bottomIndex = (bottomIndex + 6) % albumCoverCount + 1
+      if (bottomIndex === imageIndex) bottomIndex = bottomIndex % albumCoverCount + 1
       loadImage(imageIndex)
       loadBottomImage(bottomIndex)
-    }, 8000)
+    }, 4000)
   } else {
     reveal = 0
     draw(performance.now(), 0)

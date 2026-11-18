@@ -1,59 +1,25 @@
 <script setup lang="ts">
-import { Music, Waves, MicVocal } from 'lucide-vue-next'
+import { computed } from 'vue'
 import UploadZone from '@/components/UploadZone.vue'
 import WaveformViewer from '@/components/WaveformViewer.vue'
 import SeparationPanel from '@/components/SeparationPanel.vue'
 import WorkspacePlayer from '@/components/WorkspacePlayer.vue'
-import ExportPanel from '@/components/ExportPanel.vue'
 import { useAudioStore } from '@/composables/useAudioStore'
-import { STEM_COLORS } from '@/composables/useAudioUtils'
-import { t, stemLabel } from '@/i18n'
-import type { StemType } from '@/composables/useAudioStore'
-
+import { t } from '@/i18n'
 const { state } = useAudioStore()
-
-const features = [
-  { icon: MicVocal, key: 'vocals' as StemType },
-  { icon: Music, key: 'music' as StemType },
-  { icon: Waves, key: 'sfx' as StemType },
-]
+const hasResults = computed(() => Object.keys(state.results).length > 0)
 </script>
-
 <template>
-  <div class="audio-workspace mx-auto max-w-[1000px] px-6 pb-20">
-    <section class="mb-8 pt-10 text-center">
-      <h1 class="mb-3 text-3xl font-bold tracking-tight text-white/95">{{ t('home.title') }}</h1>
-      <p class="mx-auto max-w-lg text-sm leading-relaxed text-ink-secondary">
-        {{ t('home.subtitle') }}
-      </p>
-
-      <div class="mt-5 flex items-center justify-center gap-6">
-        <div
-          v-for="f in features"
-          :key="f.key"
-          class="flex items-center gap-2"
-        >
-          <div
-            class="flex h-7 w-7 items-center justify-center rounded-full"
-            :style="{ backgroundColor: `${STEM_COLORS[f.key].border}28`, color: STEM_COLORS[f.key].border }"
-          >
-            <component :is="f.icon" class="h-4 w-4" />
-          </div>
-          <span class="text-sm font-medium text-white/65">{{ stemLabel(f.key) }}</span>
-        </div>
-      </div>
-    </section>
-
-    <div class="flex flex-col gap-4">
-      <UploadZone />
-
-      <WaveformViewer v-if="state.audioBuffer" />
-
-      <WorkspacePlayer v-if="state.audioBuffer" />
-
-      <SeparationPanel v-if="state.audioBuffer" />
-
-      <ExportPanel />
+  <div class="audio-workspace workbench-page mx-auto px-6 pb-20">
+    <header class="workbench-heading"><div><p class="workbench-kicker">AudioSift</p><h1>{{ t('home.title') }}</h1></div><p>{{ t('bench.intro') }}</p></header>
+    <div class="workbench-layout" :class="{ 'has-results': hasResults }">
+      <section class="workbench-source" aria-labelledby="source-heading">
+        <h2 id="source-heading" class="workbench-section-heading"><span>01</span>{{ t('bench.source') }}</h2>
+        <UploadZone /><WaveformViewer v-if="state.audioBuffer" />
+      </section>
+      <aside v-if="state.audioBuffer" class="workbench-task" aria-labelledby="task-heading"><h2 id="task-heading" class="workbench-section-heading"><span>02</span>{{ t('bench.separate') }}</h2><SeparationPanel /></aside>
+      <section v-if="state.audioBuffer" class="workbench-player-area" :aria-label="t('work.listen')"><h2 v-if="hasResults" class="workbench-section-heading"><span>03</span>{{ t('bench.results') }}</h2><WorkspacePlayer /></section>
+      <p v-if="!state.audioBuffer" class="workbench-empty-hint">{{ t('bench.emptyHint') }}</p>
     </div>
   </div>
 </template>

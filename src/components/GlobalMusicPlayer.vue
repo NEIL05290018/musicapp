@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
+import { useAudioStore } from '@/composables/useAudioStore'
 import { musicPlayer, playMusic, pauseMusic, seekMusic, skipMusic } from '@/composables/useMusicPlayer'
 import { t } from '@/i18n'
+const route = useRoute()
+const { state } = useAudioStore()
 function clock(time: number) { return Math.floor(time / 60) + ':' + String(Math.floor(time % 60)).padStart(2, '0') }
 </script>
 <template>
-  <section v-if="musicPlayer.song" class="global-player" :aria-label="t('personal.nowPlaying')">
+  <section v-if="musicPlayer.song && (route.path !== '/' || musicPlayer.playing || !state.audioBuffer)" class="global-player" :aria-label="t('personal.nowPlaying')">
     <div class="min-w-0">
       <p class="truncate font-semibold">{{ musicPlayer.song.title }}</p>
       <p class="truncate text-xs text-white/65">{{ musicPlayer.song.artist }}</p>

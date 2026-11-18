@@ -4,6 +4,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { songs as examples } from '@/data/songs'
 import type { Song } from '@/data/songs'
 import { playlists, getPlaylistSongs } from '@/data/playlists'
+import { albumCatalog } from '@/data/albumCatalog'
 import { searchSongs } from '@/composables/useMusicApi'
 import { library, rememberSongs, importSong } from '@/composables/usePersonalLibrary'
 import { musicPlayer, playMusic, pauseMusic } from '@/composables/useMusicPlayer'
@@ -19,7 +20,8 @@ interface DiscoverModule {
   cover: string
   color: string
   tracks: Song[]
-  kind: 'theme' | 'category' | 'playlist'
+  kind: 'theme' | 'category' | 'playlist' | 'album'
+  sourceUrl?: string
 }
 interface PageTransition {
   finished: Promise<void>
@@ -51,7 +53,7 @@ let mounted = false
 
 const collection = computed(() => {
   const map = new Map<string, Song>()
-  const catalog = [...library.catalog.filter(song => song.localKey), ...remote.value, ...examples]
+  const catalog = [...library.catalog.filter(song => song.localKey), ...remote.value, ...examples, ...albumCatalog.flatMap(album => album.tracks)]
   catalog.forEach(song => map.set(song.id, song))
   return [...map.values()]
 })
@@ -61,12 +63,12 @@ const searchResults = computed(() => collection.value.filter(song =>
 const themes = computed<DiscoverModule[]>(() => [
   {
     id: 'theme:featured', title: t('explore.featured'), description: t('explore.featuredDescription'),
-    cover: '/albums/album-16.jpg', color: '#4b4a77', kind: 'theme',
-    tracks: remote.value.length ? remote.value.slice(0, 16) : examples.slice(0, 12),
+    cover: '/albums/album-32.jpg', color: '#4b4a77', kind: 'theme',
+    tracks: remote.value.length ? remote.value.slice(0, 16) : albumCatalog.flatMap(album => album.tracks.slice(0, 2)).slice(0, 16),
   },
   {
     id: 'theme:local', title: t('explore.local'), description: t('explore.localDescription'),
-    cover: '/albums/album-6.jpg', color: '#254e54', kind: 'theme',
+    cover: '/albums/album-33.jpg', color: '#254e54', kind: 'theme',
     tracks: library.catalog.filter(song => song.localKey),
   },
   {
@@ -86,7 +88,7 @@ const categories = computed<DiscoverModule[]>(() => categoryDefinitions.map(item
   id: 'category:' + item.genre,
   title: t('explore.genre.' + item.genre),
   description: t('explore.categoryDescription', { genre: t('explore.genre.' + item.genre) }),
-  cover: '/albums/album-' + item.cover + '.jpg', color: item.color, kind: 'category',
+  cover: '/albums/album-' + (albumCatalog.find(album => album.genre === item.genre)?.coverIndex || item.cover) + '.jpg', color: item.color, kind: 'category',
   tracks: collection.value.filter(song => song.genre === item.genre),
 })))
 const playlistModules = computed<DiscoverModule[]>(() => playlists.map(list => ({
@@ -94,7 +96,12 @@ const playlistModules = computed<DiscoverModule[]>(() => playlists.map(list => (
   cover: '/albums/album-' + list.coverIndex + '.jpg', color: '#355447', kind: 'playlist',
   tracks: getPlaylistSongs(list),
 })))
-const modules = computed(() => [...themes.value, ...categories.value, ...playlistModules.value])
+const albumModules = computed<DiscoverModule[]>(() => albumCatalog.map(album => ({
+  id: 'album:' + album.id, title: album.title, description: album.artist,
+  cover: '/albums/album-' + album.coverIndex + '.jpg', color: '#293b4c', kind: 'album',
+  tracks: album.tracks, sourceUrl: album.sourceUrl,
+})))
+const modules = computed(() => [...themes.value, ...categories.value, ...albumModules.value, ...playlistModules.value])
 const selected = computed(() => modules.value.find(item => item.id === expandedId.value))
 const playableTracks = computed(() => selected.value?.tracks.filter(isPlayable) || [])
 
@@ -282,6 +289,16 @@ onUnmounted(() => {
           </button>
         </section>
 
+        <section class="explore-section" aria-labelledby="explore-albums-title" style="view-transition-name: explore-albums">
+          <div class="explore-section-heading"><h2 id="explore-albums-title">{{ t('explore.albums') }}</h2><a href="/album-artwork-credits.json" target="_blank" rel="noopener noreferrer" class="text-xs text-white/55">{{ t('explore.artworkCredit') }}</a></div>
+          <div class="explore-album-grid">
+            <button v-for="item in albumModules" :key="item.id" class="explore-album discover-module" :data-discover-module="item.id" :style="{ viewTransitionName: transitionKey === item.id ? 'discover-focus' : undefined }" :disabled="animating" :aria-label="t('explore.open', { title: item.title })" @click="openModule(item.id)">
+              <img :src="item.cover" :alt="item.title + ' — ' + item.description" loading="lazy" />
+              <span class="explore-album-copy"><strong>{{ item.title }}</strong><span>{{ item.description }}</span></span>
+            </button>
+          </div>
+        </section>
+
         <section class="explore-section" aria-labelledby="explore-playlists-title" style="view-transition-name: explore-playlists">
           <div class="explore-section-heading"><h2 id="explore-playlists-title">{{ t('personal.explorePlaylists') }}</h2></div>
           <div class="explore-playlist-grid">
@@ -324,6 +341,7 @@ onUnmounted(() => {
       <div class="explore-detail-body">
         <div class="mb-6 flex flex-wrap items-center gap-3">
           <button class="library-primary" :disabled="!playableTracks.length || animating" @click="playMusic(playableTracks[0],playableTracks)">▶ {{ t('explore.playCollection') }}</button>
+          <a v-if="selected.sourceUrl" :href="selected.sourceUrl" target="_blank" rel="noopener noreferrer" class="library-button">{{ t('explore.viewAlbum') }}</a>
           <label v-if="selected.id === 'theme:local'" class="library-button cursor-pointer">{{ t('personal.importAudio') }}<input class="sr-only" type="file" accept="audio/*" multiple :disabled="importing" @change="addFiles" /></label>
           <p class="text-sm text-white/60">{{ t('explore.browseHint') }}</p>
         </div>

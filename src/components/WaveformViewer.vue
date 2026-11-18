@@ -279,11 +279,9 @@ onUnmounted(() => {
     <div v-if="range" class="grid gap-4 sm:grid-cols-2">
       <label class="text-sm">{{ t('work.start') }}
         <input class="workspace-input" type="number" min="0" :max="range.endTime - 0.1" step="0.1" :value="Number(range.startTime.toFixed(2))" @change="setRange(Number(($event.target as HTMLInputElement).value), range.endTime)" />
-        <input class="range-slider mt-4" :aria-label="t('work.start')" type="range" min="0" :max="range.endTime - 0.1" step="0.1" :value="range.startTime" @input="setRange(Number(($event.target as HTMLInputElement).value), range.endTime)" />
       </label>
       <label class="text-sm">{{ t('work.end') }}
         <input class="workspace-input" type="number" :min="range.startTime + 0.1" :max="state.audioDuration" step="0.1" :value="Number(range.endTime.toFixed(2))" @change="setRange(range.startTime, Number(($event.target as HTMLInputElement).value))" />
-        <input class="range-slider mt-4" :aria-label="t('work.end')" type="range" :min="range.startTime + 0.1" :max="state.audioDuration" step="0.1" :value="range.endTime" @input="setRange(range.startTime, Number(($event.target as HTMLInputElement).value))" />
       </label>
     </div>
     <div class="flex flex-wrap items-center justify-between gap-3 text-sm">

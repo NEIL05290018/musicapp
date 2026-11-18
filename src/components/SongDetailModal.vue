@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { X, Play, Pause, Clock, Disc3, Music } from 'lucide-vue-next'
 import type { Song } from '@/data/songs'
 import { songs } from '@/data/songs'
+import { albumCatalog, albumCoverCount } from '@/data/albumCatalog'
 import { fetchLyric, parseLyricText } from '@/composables/useMusicApi'
 import { t } from '@/i18n'
 
@@ -18,10 +19,29 @@ const emit = defineEmits<{
 
 const lyrics = ref<{ time: number; text: string }[]>([])
 const isLoadingLyric = ref(false)
-
-function getCover(index: number): string {
-  return `/albums/album-${((index - 1) % 30) + 1}.jpg`
+const dialog = ref<HTMLElement>()
+const closeButton = ref<HTMLButtonElement>()
+let origin: HTMLElement | null = null
+watch(() => props.visible, async visible => {
+  if (visible) {
+    origin = document.activeElement as HTMLElement | null
+    await nextTick()
+    closeButton.value?.focus()
+  } else if (origin?.isConnected) origin.focus({ preventScroll: true })
+})
+function handleDialogKeys(event: KeyboardEvent) {
+  if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); emit('close'); return }
+  if (event.key !== 'Tab') return
+  const items = Array.from(dialog.value?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), [tabindex="0"]') || []).filter(item => item.getClientRects().length)
+  const first = items[0], last = items[items.length - 1]
+  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
 }
+
+function getCover(song: Song): string {
+  return song.coverUrl || `/albums/album-${((song.coverIndex - 1) % albumCoverCount) + 1}.jpg`
+}
+function canPlay(song: Song) { return !!(song.localKey || song.audioSrc || song.audioUrl) }
 
 function formatDuration(s: number): string {
   const m = Math.floor(s / 60)
@@ -36,18 +56,20 @@ watch(() => props.song, (s) => {
   lyrics.value = []
   isLoadingLyric.value = false
 
-  similarSongs.value = songs
-    .filter((x) => x.id !== s.id && x.genre === s.genre)
+  const catalog = [...albumCatalog.flatMap(album => album.tracks), ...songs]
+  similarSongs.value = catalog
+    .filter((x) => x.id !== s.id && x.album === s.album)
     .slice(0, 4)
 
   if (similarSongs.value.length < 4) {
-    const others = songs.filter((x) => x.id !== s.id && x.genre !== s.genre).slice(0, 4 - similarSongs.value.length)
+    const chosen = new Set([s.id, ...similarSongs.value.map(song => song.id)])
+    const others = catalog.filter((x) => !chosen.has(x.id) && x.genre === s.genre).slice(0, 4 - similarSongs.value.length)
     similarSongs.value = [...similarSongs.value, ...others]
   }
 }, { immediate: true })
 
 function onPlayClick(song: Song) {
-  emit('play', song)
+  if (canPlay(song)) emit('play', song)
 }
 </script>
 
@@ -55,12 +77,13 @@ function onPlayClick(song: Song) {
   <Transition name="modal">
     <div
       v-if="visible && song"
+      ref="dialog"
       class="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="song-detail-title"
       @click.self="emit('close')"
-      @keydown.esc="emit('close')"
+      @keydown="handleDialogKeys"
     >
       <div class="fixed inset-0 bg-surface-base/80 backdrop-blur-md" @click="emit('close')" />
 
@@ -69,7 +92,7 @@ function onPlayClick(song: Song) {
           class="absolute right-4 top-4 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-surface-base/90 text-white/75 transition-colors hover:bg-surface-base hover:text-white"
           :aria-label="t('modal.close')"
           :title="t('modal.close')"
-          @click="emit('close')"
+          ref="closeButton" @click="emit('close')"
         >
           <X class="h-4 w-4" />
         </button>
@@ -77,7 +100,7 @@ function onPlayClick(song: Song) {
         <div class="relative shrink-0">
           <div class="absolute inset-0 bg-gradient-to-t from-[#111118] via-[#111118]/40 to-transparent z-10" />
           <img
-            :src="getCover(song.coverIndex)"
+            :src="getCover(song)"
             :alt="`${song.album} — ${song.artist}`"
             class="h-56 w-full object-cover"
           />
@@ -128,11 +151,12 @@ function onPlayClick(song: Song) {
               v-for="s in similarSongs"
               :key="s.id"
               type="button"
+              :disabled="!canPlay(s)"
               class="white-card group flex min-w-0 items-center gap-3 rounded-[28px] p-2 text-left transition-all duration-200"
               @click="onPlayClick(s)"
             >
               <div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
-                <img :src="getCover(s.coverIndex)" :alt="s.album" class="h-full w-full object-cover" />
+                <img :src="getCover(s)" :alt="s.album" class="h-full w-full object-cover" />
               </div>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-xs font-medium text-ink-black">{{ s.title }}</p>
@@ -146,11 +170,12 @@ function onPlayClick(song: Song) {
         <div class="border-t border-white/[0.06] px-6 py-4">
           <button
             type="button"
+            :disabled="!canPlay(song)"
             class="flex w-full items-center justify-center gap-2 rounded-full bg-brand-pink py-3 text-sm font-semibold text-white transition-colors duration-300 hover:bg-brand-pink-hover active:bg-brand-pink-active"
             @click="onPlayClick(song)"
           >
             <Play class="h-4 w-4" />
-            {{ t('modal.playNow') }}
+            {{ canPlay(song) ? t('modal.playNow') : t('personal.sample') }}
           </button>
         </div>
       </div>

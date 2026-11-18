@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { albumCoverCount } from '@/data/albumCatalog'
 
 const route = useRoute()
-const tileWidth = 1344
-const tileHeight = 1120
+const columns = [9, 8, 6, 5].find(count => albumCoverCount % count === 0) || 6
+const tileWidth = columns * 224
+const tileHeight = Math.ceil(albumCoverCount / columns) * 224
 const texture = ref('')
 let disposed = false
 async function createTexture() {
-  const covers = await Promise.all(Array.from({ length: 30 }, (_, i) => new Promise<HTMLImageElement | null>(resolve => {
+  const covers = await Promise.all(Array.from({ length: albumCoverCount }, (_, i) => new Promise<HTMLImageElement | null>(resolve => {
     const image = new Image()
     image.onload = () => resolve(image)
     image.onerror = () => resolve(null)
@@ -22,8 +24,8 @@ async function createTexture() {
   if (!context) return
   covers.forEach((image, index) => {
     if (!image) return
-    const x = (index % 6) * 224
-    const y = Math.floor(index / 6) * 224
+    const x = (index % columns) * 224
+    const y = Math.floor(index / columns) * 224
     const side = Math.min(image.naturalWidth, image.naturalHeight)
     context.save()
     context.beginPath()
@@ -39,7 +41,7 @@ onUnmounted(() => { disposed = true })
 </script>
 
 <template>
-  <div class="album-wall pointer-events-none fixed inset-0 z-0 hidden overflow-hidden md:block" aria-hidden="true">
+  <div class="album-wall pointer-events-none fixed inset-0 z-0 hidden overflow-hidden md:block" :style="{ '--wall-width': tileWidth + 'px', '--wall-height': tileHeight + 'px' }" aria-hidden="true">
     <div v-if="texture" class="album-wall-tiles" :style="{ backgroundImage: 'url(' + texture + ')' }" />
   </div>
   <div class="album-wall-shade pointer-events-none fixed inset-0 z-[1]" :class="{ 'album-wall-shade-workbench': route.path === '/' }" aria-hidden="true" />
@@ -49,10 +51,10 @@ onUnmounted(() => { disposed = true })
 .album-wall-tiles {
   position: absolute;
   inset: 0 auto auto 0;
-  width: calc(100% + 1344px);
-  height: calc(100% + 1120px);
+  width: calc(100% + var(--wall-width));
+  height: calc(100% + var(--wall-height));
   background-repeat: repeat;
-  background-size: 1344px 1120px;
+  background-size: var(--wall-width) var(--wall-height);
   will-change: transform;
   animation: album-wall-drift 48s linear infinite;
 }
@@ -60,7 +62,7 @@ onUnmounted(() => { disposed = true })
 .album-wall-shade-workbench { background: rgba(8, 8, 12, .50); backdrop-filter: blur(2px); }
 @keyframes album-wall-drift {
   from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-1344px, -1120px, 0); }
+  to { transform: translate3d(calc(-1 * var(--wall-width)), calc(-1 * var(--wall-height)), 0); }
 }
 @media (prefers-reduced-motion: reduce) {
   .album-wall-tiles { animation: none; }
