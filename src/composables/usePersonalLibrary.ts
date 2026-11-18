@@ -12,19 +12,22 @@ export interface Material {
   id: string; fileName: string; range: TimeSelection; createdAt: string
   originalKey: string; stems: Record<string, { key: string; duration: number }>
 }
-interface Library { layout: ModuleId[]; playlists: PersonalPlaylist[]; assets: Material[]; recent: Song[]; catalog: Song[] }
+interface Library { layout: ModuleId[]; cardOrder: string[]; playlists: PersonalPlaylist[]; assets: Material[]; recent: Song[]; catalog: Song[] }
 const auth = useAuthStore()
 export const libraryOwner = computed(() => auth.state.user ? 'user-' + auth.state.user.id : 'guest')
-export const library = reactive<Library>({ layout: [...defaultLayout], playlists: [], assets: [], recent: [], catalog: [] })
+export const library = reactive<Library>({ layout: [...defaultLayout], cardOrder: [...defaultLayout], playlists: [], assets: [], recent: [], catalog: [] })
 export const libraryFeedback = reactive({ error: '', saving: 0, opening: false })
 const storageKey = (owner: string) => 'audiosift-library-v1-' + owner
-function emptyLibrary(): Library { return { layout: [...defaultLayout], playlists: [], assets: [], recent: [], catalog: [] } }
+function emptyLibrary(): Library { return { layout: [...defaultLayout], cardOrder: [...defaultLayout], playlists: [], assets: [], recent: [], catalog: [] } }
 function readLibrary(owner: string): Library {
   try {
     const value = JSON.parse(localStorage.getItem(storageKey(owner)) || 'null')
     if (!value) return emptyLibrary()
     const layout = Array.isArray(value.layout) ? value.layout.filter((id: ModuleId) => defaultLayout.includes(id)) : []
-    return { ...emptyLibrary(), ...value, layout: [...new Set<ModuleId>([...layout, ...defaultLayout])] }
+    const playlists: PersonalPlaylist[] = Array.isArray(value.playlists) ? value.playlists : []
+    const valid = new Set<string>([...defaultLayout, ...playlists.map(list => 'playlist:' + list.id)])
+    const savedCards = Array.isArray(value.cardOrder) ? value.cardOrder.filter((id: unknown) => typeof id === 'string' && valid.has(id)) : layout
+    return { ...emptyLibrary(), ...value, playlists, layout: [...new Set<ModuleId>([...layout, ...defaultLayout])], cardOrder: [...new Set<string>([...savedCards, ...valid])] }
   } catch { return emptyLibrary() }
 }
 function commit(owner: string, update: (data: Library) => void) {
@@ -75,15 +78,16 @@ async function removeFiles(keys: string[]) {
   })
 }
 export function saveLayout(order: ModuleId[]) { commit(libraryOwner.value, data => { data.layout = [...order] }) }
+export function saveCardOrder(order: string[]) { commit(libraryOwner.value, data => { data.cardOrder = [...order] }) }
 export function createPlaylist(name: string) {
   const id = crypto.randomUUID()
-  commit(libraryOwner.value, data => { data.playlists.unshift({ id, name: name.trim(), songs: [] }) })
+  commit(libraryOwner.value, data => { data.playlists.unshift({ id, name: name.trim(), songs: [] }); data.cardOrder.push('playlist:' + id) })
   return id
 }
 export function renamePlaylist(id: string, name: string) {
   commit(libraryOwner.value, data => { const list = data.playlists.find(p => p.id === id); if (list) list.name = name.trim() })
 }
-export function deletePlaylist(id: string) { commit(libraryOwner.value, data => { data.playlists = data.playlists.filter(p => p.id !== id) }) }
+export function deletePlaylist(id: string) { commit(libraryOwner.value, data => { data.playlists = data.playlists.filter(p => p.id !== id); data.cardOrder = data.cardOrder.filter(key => key !== 'playlist:' + id) }) }
 export function addToPlaylist(id: string, song: Song) {
   commit(libraryOwner.value, data => {
     const list = data.playlists.find(p => p.id === id)

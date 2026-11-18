@@ -9,6 +9,10 @@ export const locale = ref<Locale>(storedLocale === 'en' || storedLocale === 'zh'
 
 export const messages: Record<Locale, Record<string, string>> = {
   en: {
+    "personal.playlistCount": "{n} playlists",
+    "personal.itemCount": "{n} items",
+    "personal.backLibrary": "Back to My library",
+    "personal.cardDragHint": "Drag a cover card by its grip to another position. Save with Done editing, or Cancel to keep the current order.",
     "personal.newPlaylist": "New playlist",
     "personal.trackCount": "{n} tracks",
     "personal.stemCount": "{n} tracks",
@@ -346,6 +350,10 @@ export const messages: Record<Locale, Record<string, string>> = {
     'api.unknownAlbum': 'Unknown album',
   },
   zh: {
+    "personal.playlistCount": "{n} 个歌单",
+    "personal.itemCount": "{n} 项内容",
+    "personal.backLibrary": "返回个人中心",
+    "personal.cardDragHint": "拖动封面右上角的手柄调整位置。点击“完成编辑”保存，或“取消”保留原来的排列。",
     "personal.newPlaylist": "新建歌单",
     "personal.trackCount": "{n} 首歌曲",
     "personal.stemCount": "{n} 条音轨",

@@ -2,7 +2,7 @@
 import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/composables/useAuthStore'
-import { library, libraryOwner, libraryFeedback, defaultLayout, saveLayout, createPlaylist, renamePlaylist, deletePlaylist, removeFromPlaylist, deleteMaterial, downloadAudio } from '@/composables/usePersonalLibrary'
+import { library, libraryOwner, libraryFeedback, defaultLayout, saveCardOrder, createPlaylist, renamePlaylist, deletePlaylist, removeFromPlaylist, deleteMaterial, downloadAudio } from '@/composables/usePersonalLibrary'
 import type { ModuleId, Material } from '@/composables/usePersonalLibrary'
 import { musicPlayer, playMusic } from '@/composables/useMusicPlayer'
 import { openInWorkbench, handoff } from '@/composables/useWorkbenchHandoff'
@@ -17,16 +17,14 @@ import { ListMusic, AudioLines, Heart, History, ArrowUpRight, Plus, Music2, Play
 import { t } from '@/i18n'
 
 const auth = useAuthStore()
-const moduleIcons = { playlists: ListMusic, assets: AudioLines, favorites: Heart, recent: History }
 const router = useRouter()
 const editing = ref(false)
-const order = ref<ModuleId[]>([...library.layout])
-const dragging = ref<ModuleId | null>(null)
+const collection = ref<ModuleId | ''>('')
+const order = ref<string[]>([...library.cardOrder])
+const dragging = ref<string | null>(null)
 const dragCard = ref({ x: 0, y: 0, width: 0, height: 0 })
 let dragOffset = { x: 0, y: 0 }
 const message = ref('')
-const playlistName = ref('')
-const creating = ref(false)
 const selectedAsset = ref('')
 const detail = ref<Song | null>(null)
 const selectedList = ref('')
@@ -34,7 +32,6 @@ const renamed = ref('')
 const filter = ref('')
 const confirmDelete = ref('')
 const busy = ref(false)
-const modules = computed(() => editing.value ? order.value : library.layout)
 const playlist = computed(() => library.playlists.find(list => list.id === selectedList.value))
 const material = computed(() => library.assets.find(asset => asset.id === selectedAsset.value))
 const assets = computed(() => library.assets.filter(asset => asset.fileName.toLowerCase().includes(filter.value.toLowerCase())))
@@ -46,20 +43,46 @@ const favorites = computed(() => {
   })
 })
 const savedFeatured = computed(() => featuredPlaylists.filter(p => auth.isPlaylistFavorited(p.id)))
-watch(libraryOwner, () => { stopDrag(); editing.value = false; selectedList.value = ''; confirmDelete.value = ''; message.value = ''; creating.value = false; selectedAsset.value = ''; detail.value = null })
+const cardData = computed(() => [
+  { id: 'playlists', title: t('personal.module.playlists'), subtitle: t('personal.playlistCount', { n: library.playlists.length }), cover: playlistCover(library.playlists.find(list => list.songs.length)?.songs || []), icon: ListMusic, accent: '#a777ff' },
+  { id: 'assets', title: t('personal.module.assets'), subtitle: t('personal.itemCount', { n: library.assets.length }), cover: library.assets[0] ? materialCover(library.assets[0]) : '', icon: AudioLines, accent: '#459bfa' },
+  { id: 'favorites', title: t('personal.module.favorites'), subtitle: t('personal.itemCount', { n: favorites.value.length + savedFeatured.value.length }), cover: cover(favorites.value[0]), icon: Heart, accent: '#ed569b' },
+  { id: 'recent', title: t('personal.module.recent'), subtitle: trackCount(library.recent.length), cover: cover(library.recent[0]), icon: History, accent: '#e5a548' },
+  ...library.playlists.map(list => ({ id: 'playlist:' + list.id, title: list.name, subtitle: trackCount(list.songs.length), cover: playlistCover(list.songs), icon: Music2, accent: '#a777ff' })),
+])
+const cards = computed(() => {
+  const map = new Map(cardData.value.map(card => [card.id, card]))
+  return [...new Set([...(editing.value ? order.value : library.cardOrder), ...map.keys()])].flatMap(id => {
+    const card = map.get(id); return card ? [card] : []
+  })
+})
+function openCard(id: string) {
+  message.value = ''
+  if (id.startsWith('playlist:')) selectedList.value = id.slice(9)
+  else collection.value = id as ModuleId
+}
+watch(() => cardData.value.map(card => card.id).join(','), () => {
+  if (!editing.value) return
+  const keys = new Set(cardData.value.map(card => card.id))
+  order.value = [...new Set([...order.value.filter(key => keys.has(key)), ...keys])]
+})
+watch(libraryOwner, () => { stopDrag(); editing.value = false; selectedList.value = ''; confirmDelete.value = ''; message.value = ''; collection.value = ''; selectedAsset.value = ''; detail.value = null })
 watch(() => playlist.value?.name, name => { renamed.value = name || '' }, { immediate: true })
 function action(callback: () => void) {
   try { callback(); message.value = t('personal.saved') } catch { message.value = t('personal.storageError') }
 }
-function beginEdit() { order.value = [...library.layout]; editing.value = true; message.value = '' }
-function finishEdit() { action(() => { saveLayout(order.value); editing.value = false }) }
-function restoreLayout() { order.value = [...defaultLayout]; message.value = t('personal.defaultPreview') }
+function beginEdit() { order.value = [...library.cardOrder]; editing.value = true; message.value = '' }
+function finishEdit() { action(() => { saveCardOrder(order.value); editing.value = false }) }
+function restoreLayout() { order.value = [...defaultLayout, ...library.playlists.map(list => 'playlist:' + list.id)]; message.value = t('personal.defaultPreview') }
 async function addList() {
-  if (!playlistName.value.trim()) return
+  let count = 1
+  const base = t('personal.newPlaylist')
+  while (library.playlists.some(list => list.name === base + ' ' + count)) count++
   let id = ''
-  action(() => { id = createPlaylist(playlistName.value); playlistName.value = ''; creating.value = false })
+  action(() => { id = createPlaylist(base + ' ' + count) })
+  collection.value = ''
   await nextTick()
-  if (id) document.querySelector<HTMLButtonElement>('[data-playlist="' + id + '"] .cover-card-open')?.focus()
+  if (id) document.querySelector<HTMLButtonElement>('[data-card="playlist:' + id + '"] .cover-card-open')?.focus()
 }
 function cover(song?: Song) {
   if (!song) return ''
@@ -77,10 +100,10 @@ function materialCover(asset: Material) { return cover(library.catalog.find(song
 function trackCount(count: number) { return t('personal.trackCount', { n: count }) }
 function closePlaylist() { selectedList.value = ''; confirmDelete.value = '' }
 function closeMaterial() { selectedAsset.value = ''; confirmDelete.value = '' }
-function startDrag(event: PointerEvent, id: ModuleId) {
+function startDrag(event: PointerEvent, id: string) {
   if (event.button !== 0) return
   event.preventDefault()
-  const card = (event.currentTarget as HTMLElement).closest('.profile-module')
+  const card = (event.currentTarget as HTMLElement).closest('.profile-tile')
   if (!card) return
   const rect = card.getBoundingClientRect()
   dragOffset = { x: event.clientX - rect.left, y: event.clientY - rect.top }
@@ -93,7 +116,7 @@ function startDrag(event: PointerEvent, id: ModuleId) {
 function dragMove(event: PointerEvent) {
   dragCard.value.x = event.clientX - dragOffset.x
   dragCard.value.y = event.clientY - dragOffset.y
-  const cards = document.querySelectorAll<HTMLElement>('[data-module]')
+  const cards = document.querySelectorAll<HTMLElement>('[data-card]')
   const target = Array.from(cards).find(card => {
     const grid = card.offsetParent as HTMLElement | null
     if (!grid) return false
@@ -102,7 +125,7 @@ function dragMove(event: PointerEvent) {
     const top = origin.top + card.offsetTop
     return event.clientX >= left && event.clientX <= left + card.offsetWidth
       && event.clientY >= top && event.clientY <= top + card.offsetHeight
-  })?.dataset.module as ModuleId | undefined
+  })?.dataset.card
   if (target && dragging.value && target !== dragging.value) {
     const next = [...order.value]
     const from = next.indexOf(dragging.value), to = next.indexOf(target)
@@ -118,7 +141,7 @@ function stopDrag() {
   window.removeEventListener('pointerup', stopDrag)
   window.removeEventListener('pointercancel', stopDrag)
 }
-function moveModule(id: ModuleId, direction: number) {
+function moveModule(id: string, direction: number) {
   const index = order.value.indexOf(id), target = index + direction
   if (target < 0 || target >= order.value.length) return
   const next = [...order.value]; [next[index], next[target]] = [next[target], next[index]]; order.value = next
@@ -145,77 +168,53 @@ onUnmounted(stopDrag)
 <template>
   <div class="library-page profile-page relative min-h-screen px-6 py-10">
     <div class="relative z-10 mx-auto max-w-6xl">
-      <header class="profile-account glass-card mb-6 flex flex-wrap items-center justify-between gap-6 p-7">
-        <div class="flex items-center gap-4">
-          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-brand-pink/70 text-2xl">{{ auth.state.user?.username.slice(0,1).toUpperCase() || '♪' }}</div>
-          <div><h1 class="text-2xl font-semibold">{{ auth.state.user?.username || t('personal.guest') }}</h1><p class="mt-1 text-sm">{{ auth.state.user?.email || t('personal.guestHint') }}</p><p class="mt-2 text-xs text-white/65">{{ t('personal.localStorage') }}</p></div>
+      <header class="profile-account profile-identity flex flex-wrap items-center justify-between gap-6">
+        <div class="flex items-center gap-5">
+          <div class="profile-avatar">{{ auth.state.user?.username.slice(0,1).toUpperCase() || '♪' }}</div>
+          <div><h1 class="text-3xl font-semibold text-white">{{ auth.state.user?.username || t('personal.guest') }}</h1><p class="mt-2 text-sm">{{ auth.state.user?.email || t('personal.guestHint') }}</p><p class="mt-3 text-xs text-white/55">{{ t('personal.localStorage') }}</p></div>
         </div>
-        <button v-if="!auth.isLoggedIn()" class="library-primary" @click="router.push('/auth?next=/profile')">{{ t('sidebar.login') }}</button>
-        <button v-else class="library-button" @click="auth.clearAuth()">{{ t('sidebar.logout') }}</button>
+        <button v-if="!auth.isLoggedIn()" class="library-primary" @click="router.push('/auth?next=/profile')">{{ t('sidebar.login') }}</button><button v-else class="library-button" @click="auth.clearAuth()">{{ t('sidebar.logout') }}</button>
       </header>
-      <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-xl font-semibold">{{ t('personal.space') }}</h2>
-        <div class="flex gap-2">
+      <div class="profile-library-toolbar">
+        <div><button v-if="collection" class="profile-back" @click="collection = ''; message = ''">← {{ t('personal.backLibrary') }}</button><h2>{{ collection ? t('personal.module.' + collection) : t('personal.space') }}</h2></div>
+        <div class="flex flex-wrap gap-2">
           <template v-if="editing"><button class="library-button" @click="restoreLayout">{{ t('personal.restore') }}</button><button class="library-button" @click="editing = false; stopDrag()">{{ t('personal.cancel') }}</button><button class="library-primary" @click="finishEdit">{{ t('personal.done') }}</button></template>
-          <button v-else class="library-button" @click="beginEdit">{{ t('personal.editLayout') }}</button>
+          <template v-else><button v-if="!collection" class="library-button" @click="beginEdit">{{ t('personal.editLayout') }}</button><button class="library-primary inline-flex items-center gap-2" @click="addList"><Plus class="h-4 w-4" aria-hidden="true" />{{ t('personal.newPlaylist') }}</button></template>
         </div>
       </div>
-      <p v-if="editing" class="mb-4 text-sm">{{ t('personal.dragHint') }}</p>
-      <p v-if="message" class="mb-4 text-sm" role="status">{{ message }}</p>
-      <p v-if="libraryFeedback.error" class="mb-4 text-rose-200" role="alert">{{ t(libraryFeedback.error) }}</p>
-      <TransitionGroup name="module-grid" tag="div" class="profile-grid" :class="{ 'is-editing': editing }">
-        <div v-for="id in modules" :key="id" :data-module="id" class="profile-slot" :class="{ 'drop-slot': dragging === id }" :style="dragging === id ? { minHeight: dragCard.height + 'px' } : undefined">
-          <Teleport to="body" :disabled="dragging !== id">
-            <section class="profile-module glass-card p-5" :data-kind="id" :class="{ 'is-lifted': dragging === id }" :style="dragging === id ? { position: 'fixed', left: dragCard.x + 'px', top: dragCard.y + 'px', width: dragCard.width + 'px', height: dragCard.height + 'px', zIndex: 150 } : undefined">
-              <header class="profile-module-heading">
-                <h3 class="profile-module-title text-lg font-semibold"><span class="profile-module-icon"><component :is="moduleIcons[id]" class="h-4 w-4" aria-hidden="true" /></span>{{ t('personal.module.' + id) }}</h3>
-                <div v-if="editing" class="flex items-center gap-1">
-                  <button class="library-icon-button" :aria-label="t('personal.moveUp') + t('personal.module.' + id)" @click="moveModule(id,-1)">↑</button>
-                  <button class="library-icon-button" :aria-label="t('personal.moveDown') + t('personal.module.' + id)" @click="moveModule(id,1)">↓</button>
-                  <button class="module-grip library-button" :aria-label="t('personal.drag') + t('personal.module.' + id)" @pointerdown="startDrag($event,id)">⠿</button>
-                </div>
-                <button v-else-if="id === 'playlists'" class="library-icon-button" :aria-label="t('personal.newPlaylist')" @click="creating = true"><Plus class="h-4 w-4" aria-hidden="true" /></button>
-              </header>
-              <div class="module-body" :class="{ 'module-locked': editing }" :inert="editing">
-                <template v-if="id === 'playlists'">
-                  <div class="library-cover-grid">
-                    <LibraryCoverCard v-for="list in library.playlists" :key="list.id" :data-playlist="list.id" :title="list.name" :subtitle="trackCount(list.songs.length)" :cover="playlistCover(list.songs)" :playable="list.songs.some(canPlay)" @open="selectedList = list.id" @play="playList(list.songs)" />
-                    <button class="library-new-playlist" @click="creating = true"><span><Plus aria-hidden="true" /></span><strong>{{ t('personal.newPlaylist') }}</strong></button>
-                  </div>
-                  <p v-if="!library.playlists.length" class="cover-grid-hint">{{ t('personal.emptyPlaylists') }}</p>
-                </template>
-                <template v-else-if="id === 'assets'">
-                  <input v-if="library.assets.length" v-model="filter" class="library-input mb-4 w-full" :aria-label="t('personal.searchAssets')" :placeholder="t('personal.searchAssets')" />
-                  <p v-if="libraryFeedback.saving" class="text-sm" role="status">{{ t('personal.savingAudio') }}</p>
-                  <div v-if="assets.length" class="library-cover-grid">
-                    <LibraryCoverCard v-for="asset in assets" :key="asset.id" :data-material="asset.id" :title="asset.fileName" :subtitle="asset.range.startTime.toFixed(1) + '–' + asset.range.endTime.toFixed(1) + ' s · ' + t('personal.stemCount', { n: Object.keys(asset.stems).length })" :cover="materialCover(asset)" @open="selectedAsset = asset.id"><template #art><AudioLines aria-hidden="true" /></template></LibraryCoverCard>
-                  </div>
-                  <div v-else class="library-module-empty"><AudioLines aria-hidden="true" /><p>{{ library.assets.length ? t('personal.noTracks') : t('personal.emptyAssets') }}</p><RouterLink to="/" class="library-button">{{ t('personal.goSeparate') }}</RouterLink></div>
-                </template>
-                <template v-else-if="id === 'favorites'">
-                  <div v-if="favorites.length || savedFeatured.length" class="library-cover-grid">
-                    <LibraryCoverCard v-for="song in favorites" :key="song.id" :title="song.title" :subtitle="song.artist" :cover="cover(song)" :playable="canPlay(song)" :active="musicPlayer.song?.id === song.id && musicPlayer.playing" @open="detail = song" @play="playMusic(song,favorites.filter(canPlay))"><template #actions><SongActions :song="song" /></template></LibraryCoverCard>
-                    <LibraryCoverCard v-for="list in savedFeatured" :key="list.id" :title="list.name" :subtitle="trackCount(list.songIds.length)" :cover="'/albums/album-' + list.coverIndex + '.jpg'" @open="router.push('/discover/playlist/' + list.id)" />
-                  </div>
-                  <div v-else class="library-module-empty"><Heart aria-hidden="true" /><p>{{ auth.isLoggedIn() ? t('personal.emptyFavorites') : t('personal.loginFavorites') }}</p><button class="library-button" @click="router.push(auth.isLoggedIn() ? '/discover' : '/auth?next=/profile')">{{ auth.isLoggedIn() ? t('personal.goDiscover') : t('sidebar.login') }}</button></div>
-                </template>
-                <template v-else>
-                  <div v-if="library.recent.length" class="library-cover-grid">
-                    <LibraryCoverCard v-for="song in library.recent.slice(0,8)" :key="song.id" :title="song.title" :subtitle="musicPlayer.song?.id === song.id && musicPlayer.playing ? t('personal.nowPlaying') : song.artist" :cover="cover(song)" :playable="canPlay(song)" :active="musicPlayer.song?.id === song.id && musicPlayer.playing" @open="detail = song" @play="playMusic(song,library.recent.filter(canPlay))"><template #actions><SongActions :song="song" /></template></LibraryCoverCard>
-                  </div>
-                  <div v-else class="library-module-empty"><History aria-hidden="true" /><p>{{ t('personal.emptyRecent') }}</p><RouterLink to="/discover" class="library-button">{{ t('personal.goDiscover') }}</RouterLink></div>
-                </template>
-              </div>
+      <p v-if="editing" class="mb-5 text-sm text-white/60">{{ t('personal.cardDragHint') }}</p>
+      <p v-if="message" class="mb-4 text-sm" role="status">{{ message }}</p><p v-if="libraryFeedback.error" class="mb-4 text-rose-200" role="alert">{{ t(libraryFeedback.error) }}</p>
+      <TransitionGroup v-if="!collection" name="module-grid" tag="div" class="profile-music-grid" :class="{ 'is-editing': editing }">
+        <div v-for="card in cards" :key="card.id" :data-card="card.id" class="profile-slot" :class="{ 'drop-slot': dragging === card.id }" :style="dragging === card.id ? { minHeight: dragCard.height + 'px' } : undefined">
+          <Teleport to="body" :disabled="dragging !== card.id">
+            <section class="profile-tile" :class="{ 'is-lifted': dragging === card.id }" :style="{ '--module-accent': card.accent, ...(dragging === card.id ? { position: 'fixed', left: dragCard.x + 'px', top: dragCard.y + 'px', width: dragCard.width + 'px', height: dragCard.height + 'px', zIndex: 150 } : {}) }">
+              <LibraryCoverCard :title="card.title" :subtitle="card.subtitle" :cover="card.cover" :inert="editing" @open="openCard(card.id)"><template #art><component :is="card.icon" aria-hidden="true" /></template></LibraryCoverCard>
+              <div v-if="editing" class="profile-tile-tools"><button class="library-icon-button" :disabled="cards[0]?.id === card.id" :aria-label="t('personal.moveUp') + card.title" @click="moveModule(card.id,-1)">←</button><button class="library-icon-button" :disabled="cards[cards.length - 1]?.id === card.id" :aria-label="t('personal.moveDown') + card.title" @click="moveModule(card.id,1)">→</button><button class="library-icon-button module-grip" :aria-label="t('personal.drag') + card.title" @pointerdown="startDrag($event,card.id)">⠿</button></div>
             </section>
           </Teleport>
         </div>
       </TransitionGroup>
+      <div v-else class="profile-collection-view">
+        <template v-if="collection === 'playlists'">
+          <div v-if="library.playlists.length" class="profile-music-grid"><LibraryCoverCard v-for="list in library.playlists" :key="list.id" :title="list.name" :subtitle="trackCount(list.songs.length)" :cover="playlistCover(list.songs)" :playable="list.songs.some(canPlay)" @open="selectedList = list.id" @play="playList(list.songs)" /></div>
+          <p v-else class="library-empty">{{ t('personal.emptyPlaylists') }}</p>
+        </template>
+        <template v-else-if="collection === 'assets'">
+          <input v-if="library.assets.length" v-model="filter" class="library-input mb-6 w-full max-w-md" :aria-label="t('personal.searchAssets')" :placeholder="t('personal.searchAssets')" />
+          <div v-if="assets.length" class="profile-music-grid"><LibraryCoverCard v-for="asset in assets" :key="asset.id" :data-material="asset.id" :title="asset.fileName" :subtitle="asset.range.startTime.toFixed(1) + '–' + asset.range.endTime.toFixed(1) + ' s · ' + t('personal.stemCount', { n: Object.keys(asset.stems).length })" :cover="materialCover(asset)" @open="selectedAsset = asset.id"><template #art><AudioLines aria-hidden="true" /></template></LibraryCoverCard></div>
+          <div v-else class="library-module-empty"><AudioLines aria-hidden="true" /><p>{{ library.assets.length ? t('personal.noTracks') : t('personal.emptyAssets') }}</p><RouterLink to="/" class="library-button">{{ t('personal.goSeparate') }}</RouterLink></div>
+        </template>
+        <template v-else-if="collection === 'favorites'">
+          <div v-if="favorites.length || savedFeatured.length" class="profile-music-grid"><LibraryCoverCard v-for="song in favorites" :key="song.id" :title="song.title" :subtitle="song.artist" :cover="cover(song)" :playable="canPlay(song)" :active="musicPlayer.song?.id === song.id && musicPlayer.playing" @open="detail = song" @play="playMusic(song,favorites.filter(canPlay))"><template #actions><SongActions :song="song" /></template></LibraryCoverCard><LibraryCoverCard v-for="list in savedFeatured" :key="list.id" :title="list.name" :subtitle="trackCount(list.songIds.length)" :cover="'/albums/album-' + list.coverIndex + '.jpg'" @open="router.push('/discover/playlist/' + list.id)" /></div>
+          <div v-else class="library-module-empty"><Heart aria-hidden="true" /><p>{{ auth.isLoggedIn() ? t('personal.emptyFavorites') : t('personal.loginFavorites') }}</p><button class="library-button" @click="router.push(auth.isLoggedIn() ? '/discover' : '/auth?next=/profile')">{{ auth.isLoggedIn() ? t('personal.goDiscover') : t('sidebar.login') }}</button></div>
+        </template>
+        <template v-else>
+          <div v-if="library.recent.length" class="profile-music-grid"><LibraryCoverCard v-for="song in library.recent" :key="song.id" :title="song.title" :subtitle="musicPlayer.song?.id === song.id && musicPlayer.playing ? t('personal.nowPlaying') : song.artist" :cover="cover(song)" :playable="canPlay(song)" :active="musicPlayer.song?.id === song.id && musicPlayer.playing" @open="detail = song" @play="playMusic(song,library.recent.filter(canPlay))"><template #actions><SongActions :song="song" /></template></LibraryCoverCard></div>
+          <div v-else class="library-module-empty"><History aria-hidden="true" /><p>{{ t('personal.emptyRecent') }}</p><RouterLink to="/discover" class="library-button">{{ t('personal.goDiscover') }}</RouterLink></div>
+        </template>
+      </div>
       <RouterLink to="/about" class="profile-about-link">{{ t('personal.aboutHelp') }}<ArrowUpRight class="h-4 w-4" aria-hidden="true" /></RouterLink>
     </div>
-
-    <LibraryDialog :status="message" :open="creating" :title="t('personal.newPlaylist')" compact @close="creating = false">
-      <form class="library-create-form" @submit.prevent="addList"><label for="new-playlist-name">{{ t('personal.playlistName') }}</label><input id="new-playlist-name" v-model="playlistName" autofocus class="library-input w-full" maxlength="80" :placeholder="t('personal.playlistPlaceholder')" required /><p>{{ t('personal.playlistCoverHint') }}</p><div class="library-dialog-actions"><button type="button" class="library-button" @click="creating = false">{{ t('personal.cancel') }}</button><button class="library-primary" :disabled="!playlistName.trim()">{{ t('personal.create') }}</button></div></form>
-    </LibraryDialog>
 
     <LibraryDialog :status="message" :open="!!playlist" :title="playlist?.name || ''" @close="closePlaylist">
       <template v-if="playlist">
