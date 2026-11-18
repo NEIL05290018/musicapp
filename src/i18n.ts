@@ -9,6 +9,14 @@ export const locale = ref<Locale>(storedLocale === 'en' || storedLocale === 'zh'
 
 export const messages: Record<Locale, Record<string, string>> = {
   en: {
+    "personal.newPlaylist": "New playlist",
+    "personal.trackCount": "{n} tracks",
+    "personal.stemCount": "{n} tracks",
+    "personal.playlistPlaceholder": "e.g. Evening practice",
+    "personal.playlistCoverHint": "The cover follows the last song you add.",
+    "personal.playAvailable": "Play available tracks",
+    "personal.addMusic": "Add music",
+    "personal.managePlaylist": "Playlist settings",
     'explore.albums': 'Albums in focus',
     'explore.albumLabel': 'Album',
     'explore.viewAlbum': 'View album on Apple Music',
@@ -338,6 +346,14 @@ export const messages: Record<Locale, Record<string, string>> = {
     'api.unknownAlbum': 'Unknown album',
   },
   zh: {
+    "personal.newPlaylist": "新建歌单",
+    "personal.trackCount": "{n} 首歌曲",
+    "personal.stemCount": "{n} 条音轨",
+    "personal.playlistPlaceholder": "例如：晚间练习",
+    "personal.playlistCoverHint": "封面随最后加入的歌曲自动更新。",
+    "personal.playAvailable": "播放可用歌曲",
+    "personal.addMusic": "添加音乐",
+    "personal.managePlaylist": "管理歌单",
     'explore.albums': '欧美专辑精选',
     'explore.albumLabel': '专辑',
     'explore.viewAlbum': '在 Apple Music 查看专辑',

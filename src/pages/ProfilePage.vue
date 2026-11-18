@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/composables/useAuthStore'
 import { library, libraryOwner, libraryFeedback, defaultLayout, saveLayout, createPlaylist, renamePlaylist, deletePlaylist, removeFromPlaylist, deleteMaterial, downloadAudio } from '@/composables/usePersonalLibrary'
@@ -10,7 +10,10 @@ import { songs as exampleSongs } from '@/data/songs'
 import { playlists as featuredPlaylists } from '@/data/playlists'
 import type { Song } from '@/data/songs'
 import SongActions from '@/components/SongActions.vue'
-import { ListMusic, AudioLines, Heart, History, ArrowUpRight } from 'lucide-vue-next'
+import LibraryCoverCard from '@/components/LibraryCoverCard.vue'
+import LibraryDialog from '@/components/LibraryDialog.vue'
+import SongDetailModal from '@/components/SongDetailModal.vue'
+import { ListMusic, AudioLines, Heart, History, ArrowUpRight, Plus, Music2, Play, FolderOpen } from 'lucide-vue-next'
 import { t } from '@/i18n'
 
 const auth = useAuthStore()
@@ -23,6 +26,9 @@ const dragCard = ref({ x: 0, y: 0, width: 0, height: 0 })
 let dragOffset = { x: 0, y: 0 }
 const message = ref('')
 const playlistName = ref('')
+const creating = ref(false)
+const selectedAsset = ref('')
+const detail = ref<Song | null>(null)
 const selectedList = ref('')
 const renamed = ref('')
 const filter = ref('')
@@ -30,6 +36,7 @@ const confirmDelete = ref('')
 const busy = ref(false)
 const modules = computed(() => editing.value ? order.value : library.layout)
 const playlist = computed(() => library.playlists.find(list => list.id === selectedList.value))
+const material = computed(() => library.assets.find(asset => asset.id === selectedAsset.value))
 const assets = computed(() => library.assets.filter(asset => asset.fileName.toLowerCase().includes(filter.value.toLowerCase())))
 const favorites = computed(() => {
   const all = new Map([...exampleSongs, ...library.catalog].map(song => [song.id, song]))
@@ -39,7 +46,7 @@ const favorites = computed(() => {
   })
 })
 const savedFeatured = computed(() => featuredPlaylists.filter(p => auth.isPlaylistFavorited(p.id)))
-watch(libraryOwner, () => { stopDrag(); editing.value = false; selectedList.value = ''; confirmDelete.value = ''; message.value = '' })
+watch(libraryOwner, () => { stopDrag(); editing.value = false; selectedList.value = ''; confirmDelete.value = ''; message.value = ''; creating.value = false; selectedAsset.value = ''; detail.value = null })
 watch(() => playlist.value?.name, name => { renamed.value = name || '' }, { immediate: true })
 function action(callback: () => void) {
   try { callback(); message.value = t('personal.saved') } catch { message.value = t('personal.storageError') }
@@ -47,10 +54,29 @@ function action(callback: () => void) {
 function beginEdit() { order.value = [...library.layout]; editing.value = true; message.value = '' }
 function finishEdit() { action(() => { saveLayout(order.value); editing.value = false }) }
 function restoreLayout() { order.value = [...defaultLayout]; message.value = t('personal.defaultPreview') }
-function addList() {
+async function addList() {
   if (!playlistName.value.trim()) return
-  action(() => { selectedList.value = createPlaylist(playlistName.value); playlistName.value = '' })
+  let id = ''
+  action(() => { id = createPlaylist(playlistName.value); playlistName.value = ''; creating.value = false })
+  await nextTick()
+  if (id) document.querySelector<HTMLButtonElement>('[data-playlist="' + id + '"] .cover-card-open')?.focus()
 }
+function cover(song?: Song) {
+  if (!song) return ''
+  if (song.coverUrl) return song.coverUrl
+  if (song.localKey && !song.album) return ''
+  return '/albums/album-' + song.coverIndex + '.jpg'
+}
+function playlistCover(songs: Song[]) { return cover(songs[songs.length - 1]) }
+function canPlay(song: Song) { return !!(song.localKey || song.audioSrc || song.audioUrl) }
+function playList(songs: Song[]) {
+  const available = songs.filter(canPlay)
+  if (available.length) void playMusic(available[0], available)
+}
+function materialCover(asset: Material) { return cover(library.catalog.find(song => song.title === asset.fileName)) }
+function trackCount(count: number) { return t('personal.trackCount', { n: count }) }
+function closePlaylist() { selectedList.value = ''; confirmDelete.value = '' }
+function closeMaterial() { selectedAsset.value = ''; confirmDelete.value = '' }
 function startDrag(event: PointerEvent, id: ModuleId) {
   if (event.button !== 0) return
   event.preventDefault()
@@ -138,69 +164,83 @@ onUnmounted(stopDrag)
       <p v-if="message" class="mb-4 text-sm" role="status">{{ message }}</p>
       <p v-if="libraryFeedback.error" class="mb-4 text-rose-200" role="alert">{{ t(libraryFeedback.error) }}</p>
       <TransitionGroup name="module-grid" tag="div" class="profile-grid" :class="{ 'is-editing': editing }">
-        <div v-for="id in modules" :key="id" :data-module="id" class="profile-slot"
-          :class="{ 'drop-slot': dragging === id }" :style="dragging === id ? { minHeight: dragCard.height + 'px' } : undefined">
+        <div v-for="id in modules" :key="id" :data-module="id" class="profile-slot" :class="{ 'drop-slot': dragging === id }" :style="dragging === id ? { minHeight: dragCard.height + 'px' } : undefined">
           <Teleport to="body" :disabled="dragging !== id">
-          <section class="profile-module glass-card p-5" :data-kind="id" :class="{ 'is-lifted': dragging === id }"
-            :style="dragging === id ? { position: 'fixed', left: dragCard.x + 'px', top: dragCard.y + 'px', width: dragCard.width + 'px', height: dragCard.height + 'px', zIndex: 150 } : undefined">
-          <header class="mb-4 flex items-center justify-between gap-2">
-            <h3 class="profile-module-title text-lg font-semibold"><span class="profile-module-icon"><component :is="moduleIcons[id]" class="h-4 w-4" aria-hidden="true" /></span>{{ t('personal.module.' + id) }}</h3>
-            <div v-if="editing" class="flex items-center gap-1">
-              <button class="library-icon-button" :aria-label="t('personal.moveUp') + t('personal.module.' + id)" @click="moveModule(id,-1)">↑</button>
-              <button class="library-icon-button" :aria-label="t('personal.moveDown') + t('personal.module.' + id)" @click="moveModule(id,1)">↓</button>
-              <button class="module-grip library-button" :aria-label="t('personal.drag') + t('personal.module.' + id)" @pointerdown="startDrag($event,id)">⠿</button>
-            </div>
-          </header>
-          <div class="module-body" :class="{ 'module-locked': editing }" :inert="editing">
-            <template v-if="id === 'playlists'">
-              <form class="mb-4 flex gap-2" @submit.prevent="addList"><input v-model="playlistName" class="library-input min-w-0 flex-1" maxlength="80" :aria-label="t('personal.playlistName')" :placeholder="t('personal.playlistName')" /><button class="library-primary" :disabled="!playlistName.trim()">{{ t('personal.create') }}</button></form>
-              <div class="mb-4 flex flex-wrap gap-2"><button v-for="list in library.playlists" :key="list.id" class="library-button" :aria-pressed="selectedList === list.id" @click="selectedList = list.id">{{ list.name }} · {{ list.songs.length }}</button></div>
-              <p v-if="!library.playlists.length" class="library-empty">{{ t('personal.emptyPlaylists') }}</p>
-              <template v-if="playlist">
-                <form class="mb-3 flex flex-wrap gap-2" @submit.prevent="action(() => renamePlaylist(playlist!.id, renamed))">
-                  <input v-model="renamed" maxlength="80" class="library-input min-w-0 flex-1" :aria-label="t('personal.rename')" /><button class="library-button" :disabled="!renamed.trim()">{{ t('personal.rename') }}</button>
-                  <button type="button" class="library-button" @click="confirmDelete = playlist.id">{{ t('personal.delete') }}</button>
-                </form>
-                <div v-if="confirmDelete === playlist.id" class="mb-3 flex gap-2"><button class="library-primary" @click="action(() => deletePlaylist(playlist!.id)); confirmDelete = ''">{{ t('personal.confirmDelete') }}</button><button class="library-button" @click="confirmDelete = ''">{{ t('personal.cancel') }}</button></div>
-                <div v-for="song in playlist.songs" :key="song.id" class="library-song-row">
-                  <button class="library-icon-button" :aria-label="t('player.play') + song.title" @click="playMusic(song, playlist.songs)">▶</button>
-                  <span class="min-w-0 flex-1 truncate">{{ song.title }}</span>
-                  <button class="library-icon-button" :aria-label="t('personal.remove') + song.title" @click="action(() => removeFromPlaylist(playlist!.id,song.id))">×</button>
+            <section class="profile-module glass-card p-5" :data-kind="id" :class="{ 'is-lifted': dragging === id }" :style="dragging === id ? { position: 'fixed', left: dragCard.x + 'px', top: dragCard.y + 'px', width: dragCard.width + 'px', height: dragCard.height + 'px', zIndex: 150 } : undefined">
+              <header class="profile-module-heading">
+                <h3 class="profile-module-title text-lg font-semibold"><span class="profile-module-icon"><component :is="moduleIcons[id]" class="h-4 w-4" aria-hidden="true" /></span>{{ t('personal.module.' + id) }}</h3>
+                <div v-if="editing" class="flex items-center gap-1">
+                  <button class="library-icon-button" :aria-label="t('personal.moveUp') + t('personal.module.' + id)" @click="moveModule(id,-1)">↑</button>
+                  <button class="library-icon-button" :aria-label="t('personal.moveDown') + t('personal.module.' + id)" @click="moveModule(id,1)">↓</button>
+                  <button class="module-grip library-button" :aria-label="t('personal.drag') + t('personal.module.' + id)" @pointerdown="startDrag($event,id)">⠿</button>
                 </div>
-                <p v-if="!playlist.songs.length" class="library-empty">{{ t('personal.addFromDiscover') }}</p>
-              </template>
-              <button class="mt-3 text-sm underline" @click="router.push('/discover')">{{ t('personal.goDiscover') }}</button>
-            </template>
-            <template v-else-if="id === 'assets'">
-              <input v-model="filter" class="library-input mb-3 w-full" :aria-label="t('personal.searchAssets')" :placeholder="t('personal.searchAssets')" />
-              <p v-if="libraryFeedback.saving" class="text-sm" role="status">{{ t('personal.savingAudio') }}</p>
-              <article v-for="asset in assets" :key="asset.id" class="white-card mb-3 p-4">
-                <h4 class="truncate font-medium">{{ asset.fileName }}</h4><p class="my-2 text-xs text-white/60">{{ asset.range.startTime.toFixed(2) }} – {{ asset.range.endTime.toFixed(2) }} s · {{ new Date(asset.createdAt).toLocaleDateString() }}</p>
-                <div v-for="(stem, key) in asset.stems" :key="key" class="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
-                  <button class="library-button" @click="listen(asset,String(key))">▶ {{ t('stem.' + key) }}</button><span>{{ stem.duration.toFixed(1) }} s</span><SongActions :song="materialSong(asset,String(key))" /><button class="underline" @click="download(asset,String(key))">{{ t('personal.download') }}</button>
-                </div>
-                <div class="mt-3 flex flex-wrap gap-2"><button class="library-button" :disabled="handoff.busy" @click="openMaterial(asset)">{{ t('personal.toWorkbench') }}</button><button class="library-button" @click="confirmDelete = asset.id">{{ t('personal.delete') }}</button></div>
-                <div v-if="confirmDelete === asset.id" class="mt-3 flex gap-2"><button class="library-primary" :disabled="busy" @click="removeMaterial(asset)">{{ t('personal.confirmDelete') }}</button><button class="library-button" @click="confirmDelete = ''">{{ t('personal.cancel') }}</button></div>
-              </article>
-              <p v-if="!assets.length" class="library-empty">{{ t('personal.emptyAssets') }}</p><button class="mt-3 text-sm underline" @click="router.push('/')">{{ t('personal.goSeparate') }}</button>
-            </template>
-            <template v-else-if="id === 'favorites'">
-              <p v-if="!auth.isLoggedIn()" class="library-empty">{{ t('personal.loginFavorites') }}</p>
-              <div v-for="song in favorites" :key="song.id" class="library-song-row"><button class="library-icon-button" :aria-label="t('player.play') + song.title" @click="playMusic(song,favorites)">▶</button><span class="min-w-0 flex-1 truncate">{{ song.title }}</span><SongActions :song="song" /></div>
-              <button v-for="list in savedFeatured" :key="list.id" class="library-button mb-2 mr-2" @click="router.push('/discover/playlist/' + list.id)">{{ list.name }}</button>
-              <p v-if="auth.isLoggedIn() && !favorites.length && !savedFeatured.length" class="library-empty">{{ t('personal.emptyFavorites') }}</p>
-            </template>
-            <template v-else>
-              <div v-for="song in library.recent.slice(0,8)" :key="song.id" class="library-song-row"><button class="library-icon-button" :aria-label="t('player.play') + song.title" @click="playMusic(song,library.recent)">▶</button><span class="min-w-0 flex-1 truncate">{{ song.title }}</span><span v-if="musicPlayer.song?.id === song.id" class="text-xs text-pink-200">{{ t('personal.nowPlaying') }}</span></div>
-              <p v-if="!library.recent.length" class="library-empty">{{ t('personal.emptyRecent') }}</p>
-            </template>
-          </div>
-          </section>
+                <button v-else-if="id === 'playlists'" class="library-icon-button" :aria-label="t('personal.newPlaylist')" @click="creating = true"><Plus class="h-4 w-4" aria-hidden="true" /></button>
+              </header>
+              <div class="module-body" :class="{ 'module-locked': editing }" :inert="editing">
+                <template v-if="id === 'playlists'">
+                  <div class="library-cover-grid">
+                    <LibraryCoverCard v-for="list in library.playlists" :key="list.id" :data-playlist="list.id" :title="list.name" :subtitle="trackCount(list.songs.length)" :cover="playlistCover(list.songs)" :playable="list.songs.some(canPlay)" @open="selectedList = list.id" @play="playList(list.songs)" />
+                    <button class="library-new-playlist" @click="creating = true"><span><Plus aria-hidden="true" /></span><strong>{{ t('personal.newPlaylist') }}</strong></button>
+                  </div>
+                  <p v-if="!library.playlists.length" class="cover-grid-hint">{{ t('personal.emptyPlaylists') }}</p>
+                </template>
+                <template v-else-if="id === 'assets'">
+                  <input v-if="library.assets.length" v-model="filter" class="library-input mb-4 w-full" :aria-label="t('personal.searchAssets')" :placeholder="t('personal.searchAssets')" />
+                  <p v-if="libraryFeedback.saving" class="text-sm" role="status">{{ t('personal.savingAudio') }}</p>
+                  <div v-if="assets.length" class="library-cover-grid">
+                    <LibraryCoverCard v-for="asset in assets" :key="asset.id" :data-material="asset.id" :title="asset.fileName" :subtitle="asset.range.startTime.toFixed(1) + '–' + asset.range.endTime.toFixed(1) + ' s · ' + t('personal.stemCount', { n: Object.keys(asset.stems).length })" :cover="materialCover(asset)" @open="selectedAsset = asset.id"><template #art><AudioLines aria-hidden="true" /></template></LibraryCoverCard>
+                  </div>
+                  <div v-else class="library-module-empty"><AudioLines aria-hidden="true" /><p>{{ library.assets.length ? t('personal.noTracks') : t('personal.emptyAssets') }}</p><RouterLink to="/" class="library-button">{{ t('personal.goSeparate') }}</RouterLink></div>
+                </template>
+                <template v-else-if="id === 'favorites'">
+                  <div v-if="favorites.length || savedFeatured.length" class="library-cover-grid">
+                    <LibraryCoverCard v-for="song in favorites" :key="song.id" :title="song.title" :subtitle="song.artist" :cover="cover(song)" :playable="canPlay(song)" :active="musicPlayer.song?.id === song.id && musicPlayer.playing" @open="detail = song" @play="playMusic(song,favorites.filter(canPlay))"><template #actions><SongActions :song="song" /></template></LibraryCoverCard>
+                    <LibraryCoverCard v-for="list in savedFeatured" :key="list.id" :title="list.name" :subtitle="trackCount(list.songIds.length)" :cover="'/albums/album-' + list.coverIndex + '.jpg'" @open="router.push('/discover/playlist/' + list.id)" />
+                  </div>
+                  <div v-else class="library-module-empty"><Heart aria-hidden="true" /><p>{{ auth.isLoggedIn() ? t('personal.emptyFavorites') : t('personal.loginFavorites') }}</p><button class="library-button" @click="router.push(auth.isLoggedIn() ? '/discover' : '/auth?next=/profile')">{{ auth.isLoggedIn() ? t('personal.goDiscover') : t('sidebar.login') }}</button></div>
+                </template>
+                <template v-else>
+                  <div v-if="library.recent.length" class="library-cover-grid">
+                    <LibraryCoverCard v-for="song in library.recent.slice(0,8)" :key="song.id" :title="song.title" :subtitle="musicPlayer.song?.id === song.id && musicPlayer.playing ? t('personal.nowPlaying') : song.artist" :cover="cover(song)" :playable="canPlay(song)" :active="musicPlayer.song?.id === song.id && musicPlayer.playing" @open="detail = song" @play="playMusic(song,library.recent.filter(canPlay))"><template #actions><SongActions :song="song" /></template></LibraryCoverCard>
+                  </div>
+                  <div v-else class="library-module-empty"><History aria-hidden="true" /><p>{{ t('personal.emptyRecent') }}</p><RouterLink to="/discover" class="library-button">{{ t('personal.goDiscover') }}</RouterLink></div>
+                </template>
+              </div>
+            </section>
           </Teleport>
         </div>
       </TransitionGroup>
       <RouterLink to="/about" class="profile-about-link">{{ t('personal.aboutHelp') }}<ArrowUpRight class="h-4 w-4" aria-hidden="true" /></RouterLink>
     </div>
 
+    <LibraryDialog :status="message" :open="creating" :title="t('personal.newPlaylist')" compact @close="creating = false">
+      <form class="library-create-form" @submit.prevent="addList"><label for="new-playlist-name">{{ t('personal.playlistName') }}</label><input id="new-playlist-name" v-model="playlistName" autofocus class="library-input w-full" maxlength="80" :placeholder="t('personal.playlistPlaceholder')" required /><p>{{ t('personal.playlistCoverHint') }}</p><div class="library-dialog-actions"><button type="button" class="library-button" @click="creating = false">{{ t('personal.cancel') }}</button><button class="library-primary" :disabled="!playlistName.trim()">{{ t('personal.create') }}</button></div></form>
+    </LibraryDialog>
+
+    <LibraryDialog :status="message" :open="!!playlist" :title="playlist?.name || ''" @close="closePlaylist">
+      <template v-if="playlist">
+        <div class="library-collection-heading"><div class="library-collection-art"><img v-if="playlistCover(playlist.songs)" :src="playlistCover(playlist.songs)" alt="" /><Music2 v-else aria-hidden="true" /></div><div><p>{{ trackCount(playlist.songs.length) }}</p><p class="library-collection-note">{{ t('personal.playlistCoverHint') }}</p></div></div>
+        <div class="library-dialog-actions"><button class="library-primary inline-flex items-center gap-2" :disabled="!playlist.songs.some(canPlay)" @click="playList(playlist.songs)"><Play class="h-4 w-4" aria-hidden="true" />{{ t('personal.playAvailable') }}</button><button class="library-button" @click="router.push('/discover'); closePlaylist()">{{ t('personal.addMusic') }}</button></div>
+        <div v-for="song in playlist.songs" :key="song.id" class="library-song-row">
+          <button class="library-icon-button" :disabled="!canPlay(song)" :aria-label="t('player.play') + song.title" @click="playMusic(song,playlist.songs.filter(canPlay))"><Play class="h-4 w-4" aria-hidden="true" /></button>
+          <img v-if="cover(song)" :src="cover(song)" alt="" class="h-10 w-10 rounded-lg object-cover" />
+          <span class="min-w-0 flex-1"><span class="block truncate">{{ song.title }}</span><small class="library-track-note">{{ canPlay(song) ? song.artist : t('personal.sample') }}</small></span>
+          <button class="library-icon-button" :aria-label="t('personal.remove') + song.title" @click="action(() => removeFromPlaylist(playlist!.id,song.id))">×</button>
+        </div>
+        <p v-if="!playlist.songs.length" class="library-empty">{{ t('personal.addFromDiscover') }}</p>
+        <details class="library-manage-playlist"><summary>{{ t('personal.managePlaylist') }}</summary><form class="mt-4 flex flex-wrap gap-2" @submit.prevent="action(() => renamePlaylist(playlist!.id, renamed))"><input v-model="renamed" maxlength="80" class="library-input min-w-0 flex-1" :aria-label="t('personal.rename')" /><button class="library-button" :disabled="!renamed.trim()">{{ t('personal.rename') }}</button><button type="button" class="library-button" @click="confirmDelete = playlist.id">{{ t('personal.delete') }}</button></form></details>
+        <div v-if="confirmDelete === playlist.id" class="library-dialog-actions"><button class="library-primary" @click="action(() => deletePlaylist(playlist!.id)); confirmDelete = ''">{{ t('personal.confirmDelete') }}</button><button class="library-button" @click="confirmDelete = ''">{{ t('personal.cancel') }}</button></div>
+      </template>
+    </LibraryDialog>
+
+    <LibraryDialog :status="message" :open="!!material" :title="material?.fileName || ''" @close="closeMaterial">
+      <template v-if="material">
+        <div class="library-material-summary"><AudioLines aria-hidden="true" /><div><p>{{ material.range.startTime.toFixed(2) }}–{{ material.range.endTime.toFixed(2) }} s</p><small>{{ new Date(material.createdAt).toLocaleDateString() }}</small></div></div>
+        <div v-for="(stem, key) in material.stems" :key="key" class="library-material-row"><button class="library-button" @click="listen(material,String(key))">▶ {{ t('stem.' + key) }}</button><span>{{ stem.duration.toFixed(1) }} s</span><SongActions :song="materialSong(material,String(key))" /><button class="library-button" @click="download(material,String(key))">{{ t('personal.download') }}</button></div>
+        <div class="library-dialog-actions"><button class="library-primary inline-flex items-center gap-2" :disabled="handoff.busy" @click="openMaterial(material)"><FolderOpen class="h-4 w-4" aria-hidden="true" />{{ t('personal.toWorkbench') }}</button><button class="library-button" @click="confirmDelete = material.id">{{ t('personal.delete') }}</button></div>
+        <div v-if="confirmDelete === material.id" class="library-dialog-actions"><button class="library-primary" :disabled="busy" @click="removeMaterial(material)">{{ t('personal.confirmDelete') }}</button><button class="library-button" @click="confirmDelete = ''">{{ t('personal.cancel') }}</button></div>
+      </template>
+    </LibraryDialog>
+    <SongDetailModal :song="detail" :visible="!!detail" @close="detail = null" @play="playMusic($event)" />
   </div>
 </template>
