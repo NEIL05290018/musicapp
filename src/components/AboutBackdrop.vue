@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import { albumCoverCount } from '@/data/albumCatalog'
+
+// About uses the original cover collection independently of Discover's catalogue.
+const aboutCoverCount = 30
 
 const surface = ref<HTMLCanvasElement>()
 const background = ref<HTMLCanvasElement>()
@@ -15,8 +17,8 @@ let cache: HTMLCanvasElement | null = null
 let fadeStarted = 0
 let cycleTimer: ReturnType<typeof setInterval> | undefined
 let disposed = false
-let imageIndex = 31
-let bottomIndex = 38
+let imageIndex = 16
+let bottomIndex = 1
 let bottomImage: HTMLImageElement | null = null
 let bottomCache: HTMLCanvasElement | null = null
 let previousBottom: HTMLCanvasElement | null = null
@@ -187,9 +189,9 @@ function updateMotion() {
   if (enabled && !document.hidden) {
     frame = requestAnimationFrame(tick)
     cycleTimer = setInterval(() => {
-      imageIndex = (imageIndex + 4) % albumCoverCount + 1
-      bottomIndex = (bottomIndex + 6) % albumCoverCount + 1
-      if (bottomIndex === imageIndex) bottomIndex = bottomIndex % albumCoverCount + 1
+      imageIndex = (imageIndex + 4) % aboutCoverCount + 1
+      bottomIndex = (bottomIndex + 6) % aboutCoverCount + 1
+      if (bottomIndex === imageIndex) bottomIndex = bottomIndex % aboutCoverCount + 1
       loadImage(imageIndex)
       loadBottomImage(bottomIndex)
     }, 4000)

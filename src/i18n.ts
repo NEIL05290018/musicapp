@@ -9,6 +9,8 @@ export const locale = ref<Locale>(storedLocale === 'en' || storedLocale === 'zh'
 
 export const messages: Record<Locale, Record<string, string>> = {
   en: {
+    'auth.serviceUnavailable': 'The sign-in service is unavailable. Please start the local service and try again.',
+    'auth.invalidResponse': 'The sign-in service returned an incomplete response. Please try again.',
     "personal.playlistCount": "{n} playlists",
     "personal.itemCount": "{n} items",
     "personal.backLibrary": "Back to My library",
@@ -350,6 +352,8 @@ export const messages: Record<Locale, Record<string, string>> = {
     'api.unknownAlbum': 'Unknown album',
   },
   zh: {
+    'auth.serviceUnavailable': '登录服务暂时无法连接，请启动本地服务后重试。',
+    'auth.invalidResponse': '登录服务返回的数据不完整，请重试。',
     "personal.playlistCount": "{n} 个歌单",
     "personal.itemCount": "{n} 项内容",
     "personal.backLibrary": "返回个人中心",

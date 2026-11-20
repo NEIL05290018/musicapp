@@ -1,4 +1,5 @@
 import { reactive, readonly } from 'vue'
+import { t } from '@/i18n'
 
 interface UserInfo {
   id: number
@@ -32,12 +33,36 @@ async function apiFetch(path: string, options: RequestInit = {}) {
   if (state.token) {
     headers['Authorization'] = `Bearer ${state.token}`
   }
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
-  const data = await res.json()
+  let res: Response
+  let body: string
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+    body = await res.text()
+  } catch {
+    throw new Error(t('auth.serviceUnavailable'))
+  }
+  let data
+  try {
+    data = JSON.parse(body)
+  } catch {
+    throw new Error(t(res.ok ? 'auth.invalidResponse' : 'auth.serviceUnavailable'))
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(t('auth.invalidResponse'))
+  }
   if (!res.ok) {
-    throw new Error(data.detail || 'Request failed')
+    const detail = typeof data.detail === 'string' ? data.detail : ''
+    throw new Error(res.status >= 500 ? t('auth.serviceUnavailable') : detail || t('auth.failed'))
   }
   return data
+}
+
+function validateAuthResponse(data: { token?: unknown; user?: UserInfo }) {
+  if (typeof data.token !== 'string' || !data.token.trim() || !data.user
+    || typeof data.user.id !== 'number' || typeof data.user.username !== 'string'
+    || typeof data.user.email !== 'string') {
+    throw new Error(t('auth.invalidResponse'))
+  }
 }
 
 export function useAuthStore() {
@@ -92,6 +117,7 @@ export function useAuthStore() {
       method: 'POST',
       body: JSON.stringify({ username, email, password }),
     })
+    validateAuthResponse(data)
     setAuth(data.token, data.user)
     await loadFavorites()
     return data
@@ -102,6 +128,7 @@ export function useAuthStore() {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
+    validateAuthResponse(data)
     setAuth(data.token, data.user)
     await loadFavorites()
     return data
